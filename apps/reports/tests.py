@@ -6,7 +6,7 @@ from django.test import TestCase
 Once M2's User model has the `role` field, these create real users with it.
 """
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.reports.navigation import ADMIN, EMPLOYEE, HR, menu_for_role
@@ -43,7 +43,7 @@ class MenuTests(TestCase):
         for role in (ADMIN, HR, EMPLOYEE):
             self.assertIn("Dashboard", self.labels(role))
 
-
+@override_settings(ROOT_URLCONF="apps.reports.urls")
 class DashboardAccessTests(TestCase):
     def setUp(self):
         self.admin = make_user("admin_user", ADMIN)
