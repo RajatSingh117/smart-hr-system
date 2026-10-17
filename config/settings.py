@@ -49,7 +49,6 @@ INSTALLED_APPS = [
     'apps.leave_management',
     'apps.payroll',
     'apps.reports',
-    'django_password_validators',
 ]
 
 MIDDLEWARE = [
@@ -123,7 +122,6 @@ AUTH_PASSWORD_VALIDATORS = [
             'min_length_lower': 1,
             'min_length_digit': 1,
             'min_length_special': 1,
-            'min_length_alpha' : 2,
         }
     },
 ]

@@ -46,6 +46,4 @@ urlpatterns = [
 
     # Root redirect to login
     path('', lambda request: redirect('accounts:login')),
-
-    path("dashboard/", include("apps.reports.urls")),
 ]
