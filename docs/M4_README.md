@@ -15,7 +15,7 @@ Base table structure for the attendance and leave modules of the Smart HRMS.
 | Leave models and migration (`0001_initial`) | Done |
 | Migrations applied cleanly on a fresh database | Verified |
 | Django admin registration | Done |
-| Rules document (`docs/M4_ATTENDANCE_LEAVE_RULES.md`) | Submitted separately |
+| Rules document (`docs/M4_ATTENDANCE_LEAVE_RULES.md`) | Submitted to team lead|
 | Views, services, permissions, audit calls, tests | Not started (Week 2) |
 
 ---
