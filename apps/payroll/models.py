@@ -127,10 +127,7 @@ class Payslip(models.Model):
         related_name="payslip",
     )
     payslip_number = models.CharField(max_length=50, unique=True)
-    pdf_file = models.FileField(
-        upload_to="payslips/",
-        blank=True,
-    )
+    pdf_file = models.FileField(upload_to="payslips/", blank=True)
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
