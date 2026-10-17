@@ -7,4 +7,5 @@ class AccountsConfig(AppConfig):
 
     def ready(self):
         # Import signals when app is ready
-        import apps.accounts.signals  # noqa
+        # import apps.accounts.signals  # noqa
+        from . import signals #noqa

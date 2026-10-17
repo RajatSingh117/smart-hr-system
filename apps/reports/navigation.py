@@ -1,3 +1,4 @@
+
 from django.urls import NoReverseMatch, reverse
 
 ADMIN = "admin"
@@ -25,6 +26,7 @@ def _safe_reverse(url_name):
 
 
 def menu_for_role(role, current_path=""):
+    """Return the menu items a given role may see, with resolved URLs."""
     items = []
     for entry in MENU:
         if role in entry["roles"]:
