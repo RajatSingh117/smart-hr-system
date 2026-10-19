@@ -5,4 +5,4 @@ from django.contrib.auth.models import User
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        print(f"Naya user bana hai: {instance.username}")
+        print(f"New User: {instance.username}")
