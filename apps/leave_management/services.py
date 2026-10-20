@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from datetime import date, timedelta
-from .models import LeaveRequest, LeaveStatusHistory, PublicHoliday
+from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, PublicHoliday
 
 
 ALLOWED_TRANSITIONS = {
@@ -117,6 +117,45 @@ def create_leave_request(
     )
 
 
+def deduct_leave_balance(leave_request):
+    """Deduct leave only when every year's balance is sufficient."""
+
+    yearly_days = calculate_working_days_by_year(
+        leave_request.start_date,
+        leave_request.end_date,
+    )
+
+    balances = []
+
+    # First, validate every year's balance.
+    for year, days in yearly_days.items():
+        if days == 0:
+            continue
+
+        balance = (
+            LeaveBalance.objects.select_for_update()
+            .filter(
+                employee=leave_request.employee,
+                leave_type=leave_request.leave_type,
+                year=year,
+            )
+            .first()
+        )
+
+        if balance is None or balance.remaining_days < days:
+            return False
+
+        balances.append((balance, days))
+
+    # Deduct only after all years pass validation.
+    for balance, days in balances:
+        balance.remaining_days -= days
+        balance.save(
+            update_fields=["remaining_days", "updated_at"]
+        )
+
+    return True
+
 @transaction.atomic
 def change_leave_status(
     leave_request_id,
@@ -141,6 +180,13 @@ def change_leave_status(
             f"Cannot change leave status from {old_status} "
             f"to {new_status}."
         )
+
+    if new_status == LeaveRequest.Status.APPROVED:
+        if not deduct_leave_balance(leave_request):
+            new_status = LeaveRequest.Status.REJECTED
+            remarks = (
+                f"{remarks} Insufficient leave balance."
+            ).strip()
 
     leave_request.status = new_status
     leave_request.approver = changed_by

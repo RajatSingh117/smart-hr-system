@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.employees.models import Employee
-from .models import LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
+from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
 from .services import  calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request
 
 class LeaveStatusTransitionTests(TestCase):
@@ -36,9 +36,17 @@ class LeaveStatusTransitionTests(TestCase):
             end_date=date(2026, 11, 2),
             reason="Testing leave status transitions",
         )
-
+    def create_leave_balance(self, remaining_days, year=2026):
+        return LeaveBalance.objects.create(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            year=year,
+            remaining_days=remaining_days,
+        )
+    
     def test_pending_to_approved(self):
         leave = self.create_leave_request()
+        self.create_leave_balance(remaining_days=5)
 
         change_leave_status(
             leave.pk,
@@ -86,7 +94,7 @@ class LeaveStatusTransitionTests(TestCase):
 
     def test_approved_to_pending_is_rejected(self):
         leave = self.create_leave_request()
-
+        self.create_leave_balance(remaining_days=5)
         change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
@@ -102,6 +110,7 @@ class LeaveStatusTransitionTests(TestCase):
 
     def test_status_change_creates_one_history_entry(self):
         leave = self.create_leave_request()
+        self.create_leave_balance(remaining_days=5)
 
         initial_count = LeaveStatusHistory.objects.filter(
             leave_request=leave
@@ -172,6 +181,9 @@ class LeaveApplicationValidationTests(TestCase):
 
     def test_overlapping_approved_request_is_rejected(self):
         leave = self.create_request()
+        
+        LeaveBalance.objects.create(
+            employee=self.employee, leave_type=self.leave_type, year=2026, remaining_days=5,)
 
         change_leave_status(
             leave.pk,
@@ -264,3 +276,176 @@ class WorkingDayCalculationTests(TestCase):
                 date(2027, 1, 5),
                 date(2027, 1, 1),
             )
+class LeaveBalanceApprovalTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.employee = Employee.objects.create(
+    employee_id="EMP-BAL-001",
+    email="[balance_test@example.com](mailto:balance_test@example.com)",
+    joining_date=date(2025, 1, 1),
+    )
+        cls.leave_type = LeaveType.objects.create(
+        name="Balance Test Leave",
+    )
+
+    def test_pending_request_does_not_deduct_balance(self):
+        balance = LeaveBalance.objects.create(
+         employee=self.employee,
+        leave_type=self.leave_type,
+        year=2026,
+        remaining_days=10,
+    )
+
+        leave = create_leave_request(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        start_date=date(2026, 11, 10),
+        end_date=date(2026, 11, 12),
+        reason="Testing pending balance",
+    )
+        leave.refresh_from_db()
+        balance.refresh_from_db()
+
+        self.assertEqual(
+        leave.status,
+        LeaveRequest.Status.PENDING,
+    )
+        self.assertEqual(balance.remaining_days, 10)
+    
+    def test_approval_deducts_working_days_from_balance(self):
+        balance = LeaveBalance.objects.create(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        year=2026,
+        remaining_days=10,
+    )
+
+        leave = create_leave_request(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        start_date=date(2026, 11, 10),
+        end_date=date(2026, 11, 12),
+        reason="Testing approval deduction",
+    )
+
+        change_leave_status(
+        leave.pk,
+        LeaveRequest.Status.APPROVED,
+    )
+        leave.refresh_from_db()
+        balance.refresh_from_db()
+
+        self.assertEqual(
+        leave.status,
+        LeaveRequest.Status.APPROVED,
+    )
+        self.assertEqual(leave.status, LeaveRequest.Status.APPROVED)
+
+    def test_insufficient_balance_rejects_approval(self):
+        balance = LeaveBalance.objects.create(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            year=2026,
+            remaining_days=2,
+        )
+
+        leave = create_leave_request(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            start_date=date(2026, 11, 10),
+            end_date=date(2026, 11, 12),
+            reason="Testing insufficient balance",
+        )
+
+        result = change_leave_status(
+            leave.pk,
+            LeaveRequest.Status.APPROVED,
+        )
+
+        leave.refresh_from_db()
+        balance.refresh_from_db()
+
+        self.assertEqual(
+            leave.status,
+            LeaveRequest.Status.REJECTED,
+        )
+        self.assertEqual(balance.remaining_days, 2)
+    
+    def test_cross_year_leave_deducts_from_each_year(self):
+         balance_2026 = LeaveBalance.objects.create(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            year=2026,
+            remaining_days=5,
+        )
+
+         balance_2027 = LeaveBalance.objects.create(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            year=2027,
+            remaining_days=5,
+        )
+
+         leave = create_leave_request(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            start_date=date(2026, 12, 31),
+            end_date=date(2027, 1, 4),
+            reason="Testing cross-year deduction",
+        )
+
+         change_leave_status(
+            leave.pk,
+            LeaveRequest.Status.APPROVED,
+        )
+
+         leave.refresh_from_db()
+         balance_2026.refresh_from_db()
+         balance_2027.refresh_from_db()
+
+         self.assertEqual(
+            leave.status,
+            LeaveRequest.Status.APPROVED,
+        )
+         self.assertEqual(balance_2026.remaining_days, 4)
+         self.assertEqual(balance_2027.remaining_days, 3)
+  
+    def test_cross_year_insufficient_balance_deducts_nothing(self):
+        balance_2026 = LeaveBalance.objects.create(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        year=2026,
+        remaining_days=5,
+    )
+
+        balance_2027 = LeaveBalance.objects.create(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        year=2027,
+        remaining_days=1,
+    )
+
+        leave = create_leave_request(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        start_date=date(2026, 12, 31),
+        end_date=date(2027, 1, 4),
+        reason="Testing atomicity",
+    )
+
+        change_leave_status(
+        leave.pk,
+        LeaveRequest.Status.APPROVED,
+    )
+
+        leave.refresh_from_db()
+        balance_2026.refresh_from_db()
+        balance_2027.refresh_from_db()
+
+        self.assertEqual(
+        leave.status,
+        LeaveRequest.Status.REJECTED,
+    )
+        self.assertEqual(balance_2026.remaining_days, 5)
+        self.assertEqual(balance_2027.remaining_days, 1)
+
