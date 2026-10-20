@@ -6,8 +6,7 @@ from django.test import TestCase
 
 from apps.employees.models import Employee
 from .models import LeaveRequest, LeaveStatusHistory, LeaveType
-from .services import change_leave_status
-
+from .services import change_leave_status, create_leave_request
 
 class LeaveStatusTransitionTests(TestCase):
     @classmethod
@@ -49,7 +48,6 @@ class LeaveStatusTransitionTests(TestCase):
         )
 
         leave.refresh_from_db()
-
         self.assertEqual(leave.status, LeaveRequest.Status.APPROVED)
         self.assertEqual(
             LeaveStatusHistory.objects.filter(
@@ -120,3 +118,91 @@ class LeaveStatusTransitionTests(TestCase):
         ).count()
 
         self.assertEqual(final_count - initial_count, 1)
+class LeaveApplicationValidationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+
+        cls.employee = Employee.objects.create(
+            employee_id="EMP-TEST-002",
+            email="employee002@example.com",
+            joining_date=date(2025, 1, 1),
+        )
+
+        cls.other_employee = Employee.objects.create(
+            employee_id="EMP-TEST-003",
+            email="employee003@example.com",
+            joining_date=date(2025, 1, 1),
+        )
+
+        cls.leave_type = LeaveType.objects.create(
+            name="Validation Casual Leave",
+        )
+
+    def create_request(self, employee=None, start=None, end=None):
+        return create_leave_request(
+            employee=employee or self.employee,
+            leave_type=self.leave_type,
+            start_date=start or date(2026, 11, 10),
+            end_date=end or date(2026, 11, 12),
+            reason="Testing validation",
+        )
+
+    def test_valid_request_is_created(self):
+        leave = self.create_request()
+
+        self.assertEqual(leave.status, LeaveRequest.Status.PENDING)
+        self.assertEqual(leave.employee, self.employee)
+
+    def test_end_date_before_start_date_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.create_request(
+                start=date(2026, 11, 12),
+                end=date(2026, 11, 10),
+            )
+
+    def test_overlapping_pending_request_is_rejected(self):
+        self.create_request()
+
+        with self.assertRaises(ValidationError):
+            self.create_request(
+                start=date(2026, 11, 11),
+                end=date(2026, 11, 13),
+            )
+
+    def test_overlapping_approved_request_is_rejected(self):
+        leave = self.create_request()
+
+        change_leave_status(
+            leave.pk,
+            LeaveRequest.Status.APPROVED,
+        )
+
+        with self.assertRaises(ValidationError):
+            self.create_request(
+                start=date(2026, 11, 11),
+                end=date(2026, 11, 13),
+            )
+
+    def test_rejected_request_does_not_block_new_request(self):
+        leave = self.create_request()
+
+        change_leave_status(
+            leave.pk,
+            LeaveRequest.Status.REJECTED,
+        )
+
+        new_leave = self.create_request(
+            start=date(2026, 11, 11),
+            end=date(2026, 11, 13),
+        )
+
+        self.assertEqual(new_leave.status, LeaveRequest.Status.PENDING)
+
+    def test_different_employee_can_request_same_dates(self):
+        self.create_request()
+
+        other_leave = self.create_request(
+            employee=self.other_employee,
+        )
+        self.assertEqual(other_leave.employee, self.other_employee)
