@@ -1,40 +1,37 @@
+
 """
 URL configuration for config project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from functools import wraps
+
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import TemplateView
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden
 from django.shortcuts import redirect
+
 from apps.accounts.models import User
 
 
-def is_admin(user):
-    return user.is_authenticated and user.role == User.Role.ADMIN
+def role_required(*allowed_roles):
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            if request.user.role not in allowed_roles:
+                return HttpResponseForbidden(
+                    "You do not have permission to access this page."
+                )
 
+            return view_func(request, *args, **kwargs)
 
-def is_hr_or_admin(user):
-    return user.is_authenticated and user.role in (
-        User.Role.ADMIN,
-        User.Role.HR,
-    )
+        return wrapper
+
+    return decorator
 
 
 @login_required
-@user_passes_test(is_admin)
+@role_required(User.Role.ADMIN)
 def admin_dashboard(request):
     return TemplateView.as_view(
         template_name='dashboards/admin.html'
@@ -42,7 +39,7 @@ def admin_dashboard(request):
 
 
 @login_required
-@user_passes_test(is_hr_or_admin)
+@role_required(User.Role.ADMIN, User.Role.HR)
 def hr_dashboard(request):
     return TemplateView.as_view(
         template_name='dashboards/hr.html'
@@ -62,7 +59,7 @@ urlpatterns = [
     # Auth URLs
     path('accounts/', include('apps.accounts.urls', namespace='accounts')),
 
-    # Dashboard URLs (role-based, will be enhanced by M6)
+    # Dashboard URLs
     path('admin-dashboard/', admin_dashboard, name='admin-dashboard'),
     path('hr-dashboard/', hr_dashboard, name='hr-dashboard'),
     path('my-dashboard/', my_dashboard, name='my-dashboard'),

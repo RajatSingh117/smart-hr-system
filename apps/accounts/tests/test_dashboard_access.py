@@ -46,10 +46,7 @@ class DashboardAccessTests(TestCase):
         self.client.force_login(self.hr)
         response = self.client.get(reverse("admin-dashboard"))
 
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            response.url.startswith(reverse("accounts:login"))
-        )
+        self.assertEqual(response.status_code, 403)
 
     def test_employee_can_access_employee_dashboard(self):
         self.client.force_login(self.employee)
@@ -61,19 +58,13 @@ class DashboardAccessTests(TestCase):
         self.client.force_login(self.employee)
         response = self.client.get(reverse("admin-dashboard"))
 
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            response.url.startswith(reverse("accounts:login"))
-        )
+        self.assertEqual(response.status_code, 403)
 
     def test_employee_cannot_access_hr_dashboard(self):
         self.client.force_login(self.employee)
         response = self.client.get(reverse("hr-dashboard"))
 
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            response.url.startswith(reverse("accounts:login"))
-        )
+        self.assertEqual(response.status_code, 403)
 
     def test_anonymous_user_is_redirected_to_login(self):
         for url_name in (
