@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from django.db import IntegrityError, transaction
 
 from django.test import TestCase
 
@@ -34,6 +35,15 @@ class PayrollPeriodTest(TestCase):
 
         self.assertEqual(period.name, "October 2026")
         self.assertFalse(period.is_processed)
+
+    def test_end_date_cannot_be_before_start_date(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PayrollPeriod.objects.create(
+                    name="Invalid Period",
+                    start_date=date(2026, 11, 30),
+                    end_date=date(2026, 11, 1),
+                )
 
 
 class PayrollRecordTest(TestCase):
@@ -71,12 +81,13 @@ class PayrollRecordTest(TestCase):
             basic_salary=Decimal("25000.00"),
         )
 
-        with self.assertRaises(Exception):
-            PayrollRecord.objects.create(
-                employee=self.employee,
-                payroll_period=self.period,
-                basic_salary=Decimal("25000.00"),
-            )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PayrollRecord.objects.create(
+                    employee=self.employee,
+                    payroll_period=self.period,
+                    basic_salary=Decimal("25000.00"),
+                )
 
 
 class PayslipTest(TestCase):
