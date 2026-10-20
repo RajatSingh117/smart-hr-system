@@ -17,21 +17,44 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import TemplateView
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import redirect
+from apps.accounts.models import User
 
-# Placeholder dashboard views (will be replaced by M6)
+
+def is_admin(user):
+    return user.is_authenticated and user.role == User.Role.ADMIN
+
+
+def is_hr_or_admin(user):
+    return user.is_authenticated and user.role in (
+        User.Role.ADMIN,
+        User.Role.HR,
+    )
+
+
 @login_required
+@user_passes_test(is_admin)
 def admin_dashboard(request):
-    return TemplateView.as_view(template_name='dashboards/admin.html')(request)
+    return TemplateView.as_view(
+        template_name='dashboards/admin.html'
+    )(request)
+
 
 @login_required
+@user_passes_test(is_hr_or_admin)
 def hr_dashboard(request):
-    return TemplateView.as_view(template_name='dashboards/hr.html')(request)
+    return TemplateView.as_view(
+        template_name='dashboards/hr.html'
+    )(request)
+
 
 @login_required
 def my_dashboard(request):
-    return TemplateView.as_view(template_name='dashboards/employee.html')(request)
+    return TemplateView.as_view(
+        template_name='dashboards/employee.html'
+    )(request)
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
