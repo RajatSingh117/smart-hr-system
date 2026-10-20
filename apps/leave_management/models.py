@@ -139,3 +139,17 @@ class LeaveStatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.leave_request_id}: {self.old_status or '-'} to {self.new_status}"
+
+
+class PublicHoliday(models.Model):
+    """A configured public holiday excluded from leave duration."""
+
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.name} ({self.date})"
+

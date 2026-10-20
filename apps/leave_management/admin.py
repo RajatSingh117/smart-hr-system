@@ -2,8 +2,13 @@ from django.contrib import admin
 
 from django.contrib import admin
 
-from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType
-
+from .models import (
+    LeaveBalance,
+    LeaveRequest,
+    LeaveStatusHistory,
+    LeaveType,
+    PublicHoliday,
+)
 
 @admin.register(LeaveType)
 class LeaveTypeAdmin(admin.ModelAdmin):
@@ -45,3 +50,9 @@ class LeaveRequestAdmin(admin.ModelAdmin):
     search_fields = ("employee__full_name", "employee__employee_id")
     readonly_fields = ("created_at", "updated_at")
     inlines = [LeaveStatusHistoryInline]
+@admin.register(PublicHoliday)
+class PublicHolidayAdmin(admin.ModelAdmin):
+    list_display = ("name", "date")
+    list_filter = ("date",)
+    search_fields = ("name",)
+    ordering = ("date",)

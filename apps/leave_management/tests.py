@@ -5,8 +5,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.employees.models import Employee
-from .models import LeaveRequest, LeaveStatusHistory, LeaveType
-from .services import change_leave_status, create_leave_request
+from .models import LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
+from .services import  calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request
 
 class LeaveStatusTransitionTests(TestCase):
     @classmethod
@@ -206,3 +206,61 @@ class LeaveApplicationValidationTests(TestCase):
             employee=self.other_employee,
         )
         self.assertEqual(other_leave.employee, self.other_employee)
+
+class WorkingDayCalculationTests(TestCase):
+    def test_monday_to_friday_counts_five_days(self):
+        days = calculate_working_days(
+            date(2026, 10, 19),  # Monday
+            date(2026, 10, 23),  # Friday
+        )
+        self.assertEqual(days, 5)
+
+    def test_weekend_counts_zero_days(self):
+        days = calculate_working_days(
+            date(2026, 10, 24),  # Saturday
+            date(2026, 10, 25),  # Sunday
+        )
+        self.assertEqual(days, 0)
+
+    def test_public_holiday_is_excluded(self):
+        PublicHoliday.objects.create(
+            date=date(2026, 10, 21),  # Wednesday
+            name="Test Holiday",
+        )
+
+        days = calculate_working_days(
+            date(2026, 10, 19),
+            date(2026, 10, 23),
+        )
+        self.assertEqual(days, 4)
+
+    def test_dates_spanning_two_years(self):
+        days = calculate_working_days(
+            date(2026, 12, 31),  # Thursday
+            date(2027, 1, 4),    # Monday
+        )
+        self.assertEqual(days, 3)
+
+    def test_end_date_before_start_date_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            calculate_working_days(
+                date(2026, 10, 23),
+                date(2026, 10, 19),
+            )
+    def test_working_days_are_split_by_calendar_year(self):
+        yearly_days = calculate_working_days_by_year(
+            date(2026, 12, 31),  # Thursday
+            date(2027, 1, 4),    # Monday
+        )
+
+        self.assertEqual(yearly_days, {
+            2026: 1,
+            2027: 2,
+        })
+
+    def test_yearly_breakdown_rejects_invalid_dates(self):
+        with self.assertRaises(ValidationError):
+            calculate_working_days_by_year(
+                date(2027, 1, 5),
+                date(2027, 1, 1),
+            )
