@@ -3,6 +3,12 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 
+# Create your models here.
+from decimal import Decimal
+
+from django.conf import settings
+from django.db import models
+
 
 class LeaveType(models.Model):
     """Names of leave kinds. Entered as data; no quotas assumed."""
@@ -169,3 +175,4 @@ class PublicHoliday(models.Model):
     def __str__(self):
         return f"{self.name} ({self.date})"
 
+        return f"{self.leave_request_id}: {self.old_status or '-'} to {self.new_status}"

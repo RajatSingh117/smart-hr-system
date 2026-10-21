@@ -9,6 +9,11 @@ from .models import (
     LeaveType,
     PublicHoliday,
 )
+# Register your models here.
+from django.contrib import admin
+
+from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType
+
 
 @admin.register(LeaveType)
 class LeaveTypeAdmin(admin.ModelAdmin):
@@ -56,3 +61,4 @@ class PublicHolidayAdmin(admin.ModelAdmin):
     list_filter = ("date",)
     search_fields = ("name",)
     ordering = ("date",)
+    inlines = [LeaveStatusHistoryInline]
