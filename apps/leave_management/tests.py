@@ -1,12 +1,13 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.employees.models import Employee
+from apps.attendance.models import Attendance
 from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
-from .services import  calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request
+from .services import  (calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request,restore_leave_balance,)
 
 class LeaveStatusTransitionTests(TestCase):
     @classmethod
@@ -99,6 +100,7 @@ class LeaveStatusTransitionTests(TestCase):
             leave.pk,
             LeaveRequest.Status.APPROVED,
             changed_by=self.user,
+            remarks="Approved for testing.",
         )
 
         with self.assertRaises(ValidationError):
@@ -120,7 +122,9 @@ class LeaveStatusTransitionTests(TestCase):
             leave.pk,
             LeaveRequest.Status.APPROVED,
             changed_by=self.user,
+            remarks="Approved for testing.",
         )
+
 
         final_count = LeaveStatusHistory.objects.filter(
             leave_request=leave
@@ -188,6 +192,7 @@ class LeaveApplicationValidationTests(TestCase):
         change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
+            remarks="Approved for testing.",
         )
 
         with self.assertRaises(ValidationError):
@@ -202,6 +207,7 @@ class LeaveApplicationValidationTests(TestCase):
         change_leave_status(
             leave.pk,
             LeaveRequest.Status.REJECTED,
+            remarks="Rejected for testing.",
         )
 
         new_leave = self.create_request(
@@ -286,7 +292,7 @@ class LeaveBalanceApprovalTests(TestCase):
     )
         cls.leave_type = LeaveType.objects.create(
         name="Balance Test Leave",
-    )
+        )
 
     def test_pending_request_does_not_deduct_balance(self):
         balance = LeaveBalance.objects.create(
@@ -294,7 +300,7 @@ class LeaveBalanceApprovalTests(TestCase):
         leave_type=self.leave_type,
         year=2026,
         remaining_days=10,
-    )
+     )
 
         leave = create_leave_request(
         employee=self.employee,
@@ -302,14 +308,14 @@ class LeaveBalanceApprovalTests(TestCase):
         start_date=date(2026, 11, 10),
         end_date=date(2026, 11, 12),
         reason="Testing pending balance",
-    )
+        )
         leave.refresh_from_db()
         balance.refresh_from_db()
 
         self.assertEqual(
         leave.status,
         LeaveRequest.Status.PENDING,
-    )
+        )
         self.assertEqual(balance.remaining_days, 10)
     
     def test_approval_deducts_working_days_from_balance(self):
@@ -318,27 +324,26 @@ class LeaveBalanceApprovalTests(TestCase):
         leave_type=self.leave_type,
         year=2026,
         remaining_days=10,
-    )
-
+        )
         leave = create_leave_request(
         employee=self.employee,
         leave_type=self.leave_type,
         start_date=date(2026, 11, 10),
         end_date=date(2026, 11, 12),
         reason="Testing approval deduction",
-    )
+        )
 
         change_leave_status(
         leave.pk,
         LeaveRequest.Status.APPROVED,
-    )
+        remarks="Approved for testing.",
+        )
         leave.refresh_from_db()
         balance.refresh_from_db()
-
         self.assertEqual(
         leave.status,
         LeaveRequest.Status.APPROVED,
-    )
+        )
         self.assertEqual(leave.status, LeaveRequest.Status.APPROVED)
 
     def test_insufficient_balance_rejects_approval(self):
@@ -360,6 +365,7 @@ class LeaveBalanceApprovalTests(TestCase):
         result = change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
+            remarks="Approval requested for testing.",
         )
 
         leave.refresh_from_db()
@@ -397,6 +403,7 @@ class LeaveBalanceApprovalTests(TestCase):
          change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
+            remarks="Approved requested for testing.",
         )
 
          leave.refresh_from_db()
@@ -416,14 +423,14 @@ class LeaveBalanceApprovalTests(TestCase):
         leave_type=self.leave_type,
         year=2026,
         remaining_days=5,
-    )
+        )
 
         balance_2027 = LeaveBalance.objects.create(
         employee=self.employee,
         leave_type=self.leave_type,
         year=2027,
         remaining_days=1,
-    )
+         )
 
         leave = create_leave_request(
         employee=self.employee,
@@ -431,12 +438,13 @@ class LeaveBalanceApprovalTests(TestCase):
         start_date=date(2026, 12, 31),
         end_date=date(2027, 1, 4),
         reason="Testing atomicity",
-    )
+        )
 
         change_leave_status(
         leave.pk,
         LeaveRequest.Status.APPROVED,
-    )
+        remarks="Approval requested for testing.",
+        )
 
         leave.refresh_from_db()
         balance_2026.refresh_from_db()
@@ -445,7 +453,266 @@ class LeaveBalanceApprovalTests(TestCase):
         self.assertEqual(
         leave.status,
         LeaveRequest.Status.REJECTED,
-    )
+        )
         self.assertEqual(balance_2026.remaining_days, 5)
         self.assertEqual(balance_2027.remaining_days, 1)
+
+    def test_approval_without_remarks_raises_validation_error(self):
+        leave = create_leave_request(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            start_date=date(2026, 11, 10),
+            end_date=date(2026, 11, 10),
+            reason="Testing missing approval remarks",
+            )
+
+        with self.assertRaises(ValidationError):
+            change_leave_status(
+                leave.pk,
+                LeaveRequest.Status.APPROVED,
+            )
+
+    def test_rejection_without_remarks_raises_validation_error(self):
+        leave = create_leave_request(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            start_date=date(2026, 11, 10),
+            end_date=date(2026, 11, 10),
+            reason="Testing missing rejection remarks",
+        )
+
+        with self.assertRaises(ValidationError):
+            change_leave_status(
+                leave.pk,
+                LeaveRequest.Status.REJECTED,
+            )
+class LeaveCancellationRestorationTests(LeaveStatusTransitionTests):
+    def test_cancelling_approved_future_leave_restores_balance(self):
+        leave = LeaveRequest.objects.create(
+employee=self.employee,
+leave_type=self.leave_type,
+start_date=date(2026, 11, 2),  # Monday
+end_date=date(2026, 11, 4),    # Wednesday
+reason="Future leave cancellation test",
+)
+
+        balance = self.create_leave_balance(
+        remaining_days=5,
+        year=2026,
+        )
+
+        change_leave_status(
+         leave.pk,
+        LeaveRequest.Status.APPROVED,
+        changed_by=self.user,
+        remarks="Approved for testing",
+        )
+
+        balance.refresh_from_db()
+        self.assertEqual(balance.remaining_days, 2)
+        change_leave_status(
+        leave.pk,
+        LeaveRequest.Status.CANCELLED,
+        changed_by=self.user,
+        remarks="Cancelled before leave starts",
+        )
+
+        balance.refresh_from_db()
+        leave.refresh_from_db()
+
+        self.assertEqual(balance.remaining_days, 5)
+        self.assertEqual(leave.status, LeaveRequest.Status.CANCELLED)
+        self.assertEqual(
+        leave.restoration_status,
+        LeaveRequest.RestorationStatus.COMPLETED,
+        )
+    def test_partial_cancellation_restores_only_unused_days(self):
+        leave = LeaveRequest.objects.create(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        start_date=date(2026, 10, 19),  # Monday
+        end_date=date(2026, 10, 23),    # Friday
+        reason="Partial cancellation test",
+        )
+
+        balance = self.create_leave_balance(
+        remaining_days=10,
+        year=2026,
+        )
+
+        change_leave_status(
+        leave.pk,
+        LeaveRequest.Status.APPROVED,
+        changed_by=self.user,
+        remarks="Approved for testing",
+        )
+
+        balance.refresh_from_db()
+        self.assertEqual(balance.remaining_days, 5)
+
+    # Monday was worked, so that day's leave is unused.
+        Attendance.objects.create(
+        employee=self.employee,
+        date=date(2026, 10, 19),
+        status=Attendance.Status.PRESENT,
+        )
+
+    # Tuesday was worked, so that day's leave is unused.
+        Attendance.objects.create(
+        employee=self.employee,
+        date=date(2026, 10, 20),
+        status=Attendance.Status.PRESENT,
+        )
+
+    # Wednesday has no attendance record, so the service
+    # should flag the request for HR review.
+        change_leave_status(
+        leave.pk,
+        LeaveRequest.Status.CANCELLED,
+        changed_by=self.user,
+        remarks="Cancelled partway through leave",
+         )
+
+        balance.refresh_from_db()
+        leave.refresh_from_db()
+
+        self.assertEqual(balance.remaining_days, 5)
+        self.assertEqual(
+        leave.restoration_status,
+        LeaveRequest.RestorationStatus.HR_REVIEW,
+        )
+    def test_partial_cancellation_restores_only_confirmed_unused_days(self):
+        leave = LeaveRequest.objects.create(
+        employee=self.employee,
+        leave_type=self.leave_type,
+        start_date=date(2026, 10, 19),  # Monday
+        end_date=date(2026, 10, 23),    # Friday
+        reason="Partial restoration test",
+        )
+
+        balance = self.create_leave_balance(
+        remaining_days=10,
+        year=2026,
+        )
+
+        change_leave_status(
+        leave.pk,
+        LeaveRequest.Status.APPROVED,
+        changed_by=self.user,
+        remarks="Approved for testing",
+        )
+
+    # Monday and Tuesday were worked: unused leave.
+        Attendance.objects.create(
+        employee=self.employee,
+        date=date(2026, 10, 19),
+        status=Attendance.Status.PRESENT,
+        )
+        Attendance.objects.create(
+        employee=self.employee,
+        date=date(2026, 10, 20),
+        status=Attendance.Status.LATE,
+     )
+
+    # Wednesday and Thursday were taken as leave.
+        Attendance.objects.create(
+        employee=self.employee,
+        date=date(2026, 10, 21),
+        status=Attendance.Status.ON_LEAVE,
+        )
+        Attendance.objects.create(
+        employee=self.employee,
+        date=date(2026, 10, 22),
+        status=Attendance.Status.ON_LEAVE,
+        )
+
+        change_leave_status(
+        leave.pk,
+        LeaveRequest.Status.CANCELLED,
+        changed_by=self.user,
+        remarks="Cancelled partway through leave",
+         )
+
+        balance.refresh_from_db()
+        leave.refresh_from_db()
+
+    # Original 5-day deduction, then restore Monday,
+    # Tuesday, and future Friday: 4 days restored.
+        self.assertEqual(balance.remaining_days, 9)
+        self.assertEqual(
+        leave.restoration_status,
+        LeaveRequest.RestorationStatus.COMPLETED,
+        )
+    def test_leave_balance_is_not_restored_twice(self):
+        leave = LeaveRequest.objects.create(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            start_date=date(2026, 11, 2),
+            end_date=date(2026, 11, 3),
+            reason="Double restoration safety test",
+        )
+
+        balance = self.create_leave_balance(
+            remaining_days=5,
+            year=2026,
+        )
+
+        unused_days = [
+            date(2026, 11, 2),
+            date(2026, 11, 3),
+        ]
+
+        # First restoration should add two days.
+        result = restore_leave_balance(leave, unused_days)
+
+        balance.refresh_from_db()
+        self.assertTrue(result)
+        self.assertEqual(balance.remaining_days, 7)
+
+        # Second restoration must not add the same days again.
+        result = restore_leave_balance(leave, unused_days)
+
+        balance.refresh_from_db()
+        leave.refresh_from_db()
+
+        self.assertTrue(result)
+        self.assertEqual(balance.remaining_days, 7)
+        self.assertEqual(
+            leave.restoration_status,
+            LeaveRequest.RestorationStatus.COMPLETED,
+        )
+
+    def test_missing_yearly_balance_prevents_partial_restoration(self):
+        leave = LeaveRequest.objects.create(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            start_date=date(2026, 12, 31),
+            end_date=date(2027, 1, 1),
+            reason="Missing yearly balance safety test",
+        )
+
+        # The 2026 balance exists, but the 2027 balance does not.
+        balance_2026 = self.create_leave_balance(
+            remaining_days=5,
+            year=2026,
+        )
+
+        unused_days = [
+            date(2026, 12, 31),
+            date(2027, 1, 1),
+        ]
+
+        result = restore_leave_balance(leave, unused_days)
+
+        balance_2026.refresh_from_db()
+        leave.refresh_from_db()
+
+        # Restoration must not partially update the 2026 balance.
+        self.assertFalse(result)
+        self.assertEqual(balance_2026.remaining_days, 5)
+        self.assertEqual(
+            leave.restoration_status,
+            LeaveRequest.RestorationStatus.HR_REVIEW,
+        )
+        self.assertTrue(leave.restoration_review_reason)
 

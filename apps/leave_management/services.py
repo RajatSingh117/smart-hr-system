@@ -3,12 +3,17 @@ from django.db import transaction
 from django.utils import timezone
 from datetime import date, timedelta
 from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, PublicHoliday
+from apps.attendance.models import Attendance
+
 
 
 ALLOWED_TRANSITIONS = {
     LeaveRequest.Status.PENDING: {
         LeaveRequest.Status.APPROVED,
         LeaveRequest.Status.REJECTED,
+        LeaveRequest.Status.CANCELLED,
+    },
+    LeaveRequest.Status.APPROVED: {
         LeaveRequest.Status.CANCELLED,
     },
 }
@@ -80,6 +85,144 @@ def calculate_working_days_by_year(start_date, end_date):
         current_year += 1
 
     return yearly_days
+def get_unused_leave_days(leave_request):
+    """
+    Identify unused working days using attendance records.
+
+    Return None if any relevant attendance record is missing
+    or its status is unclear. Otherwise, return unused dates.
+    """
+    today = timezone.localdate()
+
+    # Leave has not started: all approved working days are unused.
+    if today < leave_request.start_date:
+        unused_days = []
+
+        current_date = leave_request.start_date
+        while current_date <= leave_request.end_date:
+            if calculate_working_days(current_date, current_date):
+                unused_days.append(current_date)
+            current_date += timedelta(days=1)
+
+        return unused_days
+
+    # Leave has started: inspect attendance records.
+    working_dates = []
+    current_date = leave_request.start_date
+
+    while current_date <= min(leave_request.end_date, today):
+        if calculate_working_days(current_date, current_date):
+            working_dates.append(current_date)
+        current_date += timedelta(days=1)
+
+    attendance_records = {
+        record.date: record
+        for record in Attendance.objects.filter(
+            employee=leave_request.employee,
+            date__in=working_dates,
+        )
+    }
+
+    unused_days = []
+
+    for day in working_dates:
+        record = attendance_records.get(day)
+
+        if record is None:
+            return None
+
+        if record.status in {
+            Attendance.Status.PRESENT,
+            Attendance.Status.LATE,
+        }:
+            unused_days.append(day)
+
+        elif record.status == Attendance.Status.ON_LEAVE:
+            continue
+
+        else:
+            # ABSENT and HALF_DAY need HR interpretation.
+            return None
+
+    # Future working days have not yet been taken.
+    current_date = max(leave_request.start_date, today + timedelta(days=1))
+
+    while current_date <= leave_request.end_date:
+        if calculate_working_days(current_date, current_date):
+            unused_days.append(current_date)
+        current_date += timedelta(days=1)
+
+    return unused_days
+@transaction.atomic
+def restore_leave_balance(leave_request, unused_days):
+    """
+    Restore eligible unused leave days.
+    If any required yearly balance is missing, restore nothing
+    and flag the request for HR review.
+    """
+    if leave_request.restoration_status == (
+        LeaveRequest.RestorationStatus.COMPLETED
+    ):
+        return True
+
+    days_by_year = {}
+
+    for day in unused_days:
+        days_by_year[day.year] = days_by_year.get(day.year, 0) + 1
+
+    balances = []
+
+    # Validate every required balance before changing any balance.
+    for year, days in days_by_year.items():
+        balance = (
+            LeaveBalance.objects.select_for_update()
+            .filter(
+                employee=leave_request.employee,
+                leave_type=leave_request.leave_type,
+                year=year,
+            )
+            .first()
+        )
+
+        if balance is None:
+            leave_request.restoration_status = (
+                LeaveRequest.RestorationStatus.HR_REVIEW
+            )
+            leave_request.restoration_review_reason = (
+                f"Leave balance for {year} is missing. "
+                "HR must review the restoration."
+            )
+            leave_request.save(
+                update_fields=[
+                    "restoration_status",
+                    "restoration_review_reason",
+                    "updated_at",
+                ]
+            )
+            return False
+
+        balances.append((balance, days))
+
+    # Update balances only after all required balances are found.
+    for balance, days in balances:
+        balance.remaining_days += days
+        balance.save(update_fields=["remaining_days", "updated_at"])
+
+    leave_request.restoration_status = (
+        LeaveRequest.RestorationStatus.COMPLETED
+    )
+    leave_request.restoration_review_reason = ""
+    leave_request.restoration_completed_at = timezone.now()
+    leave_request.save(
+        update_fields=[
+            "restoration_status",
+            "restoration_review_reason",
+            "restoration_completed_at",
+            "updated_at",
+        ]
+    )
+
+    return True
 @transaction.atomic
 def create_leave_request(
     employee,
@@ -180,6 +323,16 @@ def change_leave_status(
             f"Cannot change leave status from {old_status} "
             f"to {new_status}."
         )
+    if (
+    new_status in {
+        LeaveRequest.Status.APPROVED,
+        LeaveRequest.Status.REJECTED,
+    }
+    and not remarks.strip()
+    ):
+        raise ValidationError(
+        "Remarks are required to approve or reject leave."
+        )
 
     if new_status == LeaveRequest.Status.APPROVED:
         if not deduct_leave_balance(leave_request):
@@ -187,6 +340,29 @@ def change_leave_status(
             remarks = (
                 f"{remarks} Insufficient leave balance."
             ).strip()
+    if (
+    old_status == LeaveRequest.Status.APPROVED
+    and new_status == LeaveRequest.Status.CANCELLED
+ ):
+        unused_days = get_unused_leave_days(leave_request)
+
+        if unused_days is None:
+            leave_request.restoration_status = (
+            LeaveRequest.RestorationStatus.HR_REVIEW
+           )
+            leave_request.restoration_review_reason = (
+            "Attendance records are missing or unclear. "
+            "HR must review the leave balance restoration."
+             )
+            leave_request.save(
+            update_fields=[
+                "restoration_status",
+                "restoration_review_reason",
+                "updated_at",
+            ]
+            )
+        else:
+            restore_leave_balance(leave_request, unused_days)
 
     leave_request.status = new_status
     leave_request.approver = changed_by

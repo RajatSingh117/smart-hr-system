@@ -86,6 +86,22 @@ class LeaveRequest(models.Model):
     )
     approver_remarks = models.TextField(blank=True)
     decided_at = models.DateTimeField(null=True, blank=True)
+    class RestorationStatus(models.TextChoices):
+        NOT_REQUIRED = "NOT_REQUIRED", "Not required"
+        PENDING = "PENDING", "Pending"
+        COMPLETED = "COMPLETED", "Completed"
+        HR_REVIEW = "HR_REVIEW", "Requires HR review"
+
+    restoration_status = models.CharField(
+        max_length=20,
+        choices=RestorationStatus.choices,
+        default=RestorationStatus.NOT_REQUIRED,
+    )
+    restoration_review_reason = models.TextField(blank=True)
+    restoration_completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
