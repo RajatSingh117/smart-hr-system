@@ -1,8 +1,8 @@
 from django.conf import settings
-from django.db import models
+from apps.accounts.mixins import AuditedModelMixin
 
 
-class Attendance(models.Model):
+class Attendance(AuditedModelMixin):
     """One attendance record per employee per day."""
 
     class Status(models.TextChoices):
