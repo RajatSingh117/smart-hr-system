@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db import models
 from apps.accounts.mixins import AuditedModelMixin
 
 
