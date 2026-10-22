@@ -5,8 +5,6 @@ from datetime import date, timedelta
 from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, PublicHoliday
 from apps.attendance.models import Attendance
 
-
-
 ALLOWED_TRANSITIONS = {
     LeaveRequest.Status.PENDING: {
         LeaveRequest.Status.APPROVED,
@@ -22,7 +20,6 @@ BLOCKING_LEAVE_STATUSES = [
     LeaveRequest.Status.PENDING,
     LeaveRequest.Status.APPROVED,
 ]
-
 
 def calculate_working_days(start_date, end_date):
     """
@@ -323,6 +320,23 @@ def change_leave_status(
             f"Cannot change leave status from {old_status} "
             f"to {new_status}."
         )
+
+    # Only HR/Admin can approve or reject leave requests.
+    if new_status in {
+        LeaveRequest.Status.APPROVED,
+        LeaveRequest.Status.REJECTED,
+    }:
+        if changed_by is None or not changed_by.is_hr:
+            raise ValidationError(
+                "Only HR or Admin can approve or reject leave."
+            )
+
+        # Prevent users from approving or rejecting their own leave.
+        if leave_request.employee.user_id == changed_by.pk:
+            raise ValidationError(
+                "You cannot approve or reject your own leave request."
+            )
+
     if (
     new_status in {
         LeaveRequest.Status.APPROVED,
@@ -365,22 +379,16 @@ def change_leave_status(
             restore_leave_balance(leave_request, unused_days)
 
     leave_request.status = new_status
-    leave_request.approver = changed_by
-    leave_request.approver_remarks = remarks
-
-    update_fields = [
-        "status",
-        "approver",
-        "approver_remarks",
-        "updated_at",
-    ]
+    update_fields = ["status", "updated_at"]
 
     if new_status in {
         LeaveRequest.Status.APPROVED,
         LeaveRequest.Status.REJECTED,
     }:
+        leave_request.approver = changed_by
+        leave_request.approver_remarks = remarks
         leave_request.decided_at = timezone.now()
-        update_fields.append("decided_at")
+        update_fields += ["approver", "approver_remarks", "decided_at"]
 
     leave_request.save(update_fields=update_fields)
 

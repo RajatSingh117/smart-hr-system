@@ -133,14 +133,6 @@ def correct_attendance(
         raise ValidationError(
             "Check-out time must be later than check-in time."
         )
-
-    old_values = {
-        "status": attendance.status,
-        "check_in": attendance.check_in,
-        "check_out": attendance.check_out,
-        "correction_note": attendance.correction_note,
-    }
-
     attendance.corrected_by = actor
     attendance.corrected_at = timezone.now()
     attendance.correction_note = reason.strip()
@@ -168,10 +160,13 @@ def correct_attendance(
         audit_actor=actor,
     )
 
+    def _jsonable(value):
+        return value.isoformat() if hasattr(value, "isoformat") else value
+
     changes = {
         field: {
-            "old": old_values[field],
-            "new": getattr(attendance, field),
+            "old": _jsonable(old_values[field]),
+            "new": _jsonable(getattr(attendance, field)),
         }
         for field in old_values
         if old_values[field] != getattr(attendance, field)

@@ -9,8 +9,8 @@ from django.utils import timezone
 
 from apps.employees.models import Employee
 from apps.attendance.models import Attendance
-from apps.attendance.services import check_in, check_out, correct_attendance
-from apps.attendance.services import get_monthly_attendance_summary
+from apps.attendance.services import check_in, check_out, correct_attendance , get_monthly_attendance_summary
+
 
 
 class AttendanceCheckInTests(TestCase):
@@ -117,6 +117,21 @@ class AttendanceCorrectionTests(TestCase):
             check_in=timezone.now(),
             status=Attendance.Status.PRESENT,
         )
+    def test_check_in_correction_creates_single_audit_event(self):
+        from apps.accounts.models import AuditEvent
+
+        correct_attendance(
+            self.attendance.pk,
+            self.hr_user,
+            check_in=self.attendance.check_in - timezone.timedelta(hours=1),
+            reason="Fixed check-in time",
+        )
+        events = AuditEvent.objects.filter(
+            actor=self.hr_user,
+            object_id=self.attendance.pk,
+            action="UPDATE",
+        )
+        self.assertEqual(events.count(), 1)
 
     def test_hr_can_correct_attendance_with_reason(self):
         result = correct_attendance(

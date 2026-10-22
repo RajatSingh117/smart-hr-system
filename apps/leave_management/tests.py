@@ -17,6 +17,7 @@ class LeaveStatusTransitionTests(TestCase):
         cls.user = User.objects.create_user(
             email="leave_test_user@example.com",
             password="test-password-123",
+            role=User.Role.HR,
         )
 
         # Adjust required fields if your Employee model needs more data.
@@ -131,10 +132,77 @@ class LeaveStatusTransitionTests(TestCase):
         ).count()
 
         self.assertEqual(final_count - initial_count, 1)
+    
+    def test_cancelling_keeps_original_approver_and_remarks(self):
+        leave = self.create_leave_request()
+        self.create_leave_balance(remaining_days=5)
+        change_leave_status(
+            leave.pk, LeaveRequest.Status.APPROVED,
+            changed_by=self.user, remarks="Approved",
+        )
+        other = get_user_model().objects.create_user(
+            email="canceller@example.com", password="test-password-123",
+        )
+        change_leave_status(
+            leave.pk, LeaveRequest.Status.CANCELLED,
+            changed_by=other, remarks="Cancelled by employee",
+        )
+        leave.refresh_from_db()
+        self.assertEqual(leave.approver, self.user)
+        self.assertEqual(leave.approver_remarks, "Approved")
+
+    def test_non_hr_user_cannot_approve(self):
+        employee_user = get_user_model().objects.create_user(
+            email="plain@example.com", password="test-password-123",
+        )
+        leave = self.create_leave_request()
+        self.create_leave_balance(remaining_days=5)
+        with self.assertRaises(ValidationError):
+            change_leave_status(
+                leave.pk, LeaveRequest.Status.APPROVED,
+                changed_by=employee_user, remarks="Trying",
+            )
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, LeaveRequest.Status.PENDING)
+
+    def test_hr_cannot_approve_own_leave(self):
+        self.employee.user = self.user
+        self.employee.save(update_fields=["user"])
+        leave = self.create_leave_request()
+        self.create_leave_balance(remaining_days=5)
+        with self.assertRaises(ValidationError):
+            change_leave_status(
+                leave.pk, LeaveRequest.Status.APPROVED,
+                changed_by=self.user, remarks="Self approval",
+            )
+    def test_employee_can_cancel_own_pending_leave(self):
+        employee_user = get_user_model().objects.create_user(
+            email="own_cancel@example.com",
+            password="test-password-123",
+        )
+        self.employee.user = employee_user
+        self.employee.save(update_fields=["user"])
+        leave = self.create_leave_request()
+
+        change_leave_status(
+            leave.pk,
+            LeaveRequest.Status.CANCELLED,
+            changed_by=employee_user,
+            remarks="Plans changed",
+        )
+
+        leave.refresh_from_db()
+        self.assertEqual(leave.status, LeaveRequest.Status.CANCELLED)
+
 class LeaveApplicationValidationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         User = get_user_model()
+        cls.hr_user = User.objects.create_user(
+            email="validation_hr@example.com",
+            password="test-password-123",
+            role=User.Role.HR,
+        )
 
         cls.employee = Employee.objects.create(
             employee_id="EMP-TEST-002",
@@ -192,6 +260,7 @@ class LeaveApplicationValidationTests(TestCase):
         change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
+            changed_by=self.hr_user,
             remarks="Approved for testing.",
         )
 
@@ -207,6 +276,7 @@ class LeaveApplicationValidationTests(TestCase):
         change_leave_status(
             leave.pk,
             LeaveRequest.Status.REJECTED,
+            changed_by=self.hr_user,
             remarks="Rejected for testing.",
         )
 
@@ -284,13 +354,19 @@ class WorkingDayCalculationTests(TestCase):
             )
 class LeaveBalanceApprovalTests(TestCase):
     @classmethod
-    def setUpTestData(cls):
-        cls.employee = Employee.objects.create(
+    def setUpTestData(cls): 
+         User = get_user_model()
+         cls.hr_user = User.objects.create_user(
+            email="balance_hr@example.com",
+            password="test-password-123",
+            role=User.Role.HR,
+        )
+         cls.employee = Employee.objects.create(
     employee_id="EMP-BAL-001",
-    email="[balance_test@example.com](mailto:balance_test@example.com)",
+    email="balance_test@example.com",
     joining_date=date(2025, 1, 1),
     )
-        cls.leave_type = LeaveType.objects.create(
+         cls.leave_type = LeaveType.objects.create(
         name="Balance Test Leave",
         )
 
@@ -336,6 +412,7 @@ class LeaveBalanceApprovalTests(TestCase):
         change_leave_status(
         leave.pk,
         LeaveRequest.Status.APPROVED,
+        changed_by=self.hr_user,
         remarks="Approved for testing.",
         )
         leave.refresh_from_db()
@@ -344,7 +421,7 @@ class LeaveBalanceApprovalTests(TestCase):
         leave.status,
         LeaveRequest.Status.APPROVED,
         )
-        self.assertEqual(leave.status, LeaveRequest.Status.APPROVED)
+        self.assertEqual(balance.remaining_days, 7)
 
     def test_insufficient_balance_rejects_approval(self):
         balance = LeaveBalance.objects.create(
@@ -365,6 +442,7 @@ class LeaveBalanceApprovalTests(TestCase):
         result = change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
+            changed_by=self.hr_user,
             remarks="Approval requested for testing.",
         )
 
@@ -403,6 +481,7 @@ class LeaveBalanceApprovalTests(TestCase):
          change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
+            changed_by=self.hr_user,
             remarks="Approved requested for testing.",
         )
 
@@ -443,6 +522,7 @@ class LeaveBalanceApprovalTests(TestCase):
         change_leave_status(
         leave.pk,
         LeaveRequest.Status.APPROVED,
+        changed_by=self.hr_user,
         remarks="Approval requested for testing.",
         )
 
@@ -470,6 +550,7 @@ class LeaveBalanceApprovalTests(TestCase):
             change_leave_status(
                 leave.pk,
                 LeaveRequest.Status.APPROVED,
+                changed_by=self.hr_user,
             )
 
     def test_rejection_without_remarks_raises_validation_error(self):
@@ -485,9 +566,11 @@ class LeaveBalanceApprovalTests(TestCase):
             change_leave_status(
                 leave.pk,
                 LeaveRequest.Status.REJECTED,
+                changed_by=self.hr_user,
             )
 class LeaveCancellationRestorationTests(LeaveStatusTransitionTests):
-    def test_cancelling_approved_future_leave_restores_balance(self):
+    @patch("apps.leave_management.services.timezone.localdate", return_value=date(2026, 10, 22))
+    def test_cancelling_approved_future_leave_restores_balance(self,mock_day):
         leave = LeaveRequest.objects.create(
 employee=self.employee,
 leave_type=self.leave_type,
@@ -526,7 +609,8 @@ reason="Future leave cancellation test",
         leave.restoration_status,
         LeaveRequest.RestorationStatus.COMPLETED,
         )
-    def test_partial_cancellation_restores_only_unused_days(self):
+    @patch("apps.leave_management.services.timezone.localdate", return_value=date(2026, 10, 22))
+    def test_partial_cancellation_restores_only_unused_days(self,mock_day):
         leave = LeaveRequest.objects.create(
         employee=self.employee,
         leave_type=self.leave_type,
@@ -581,7 +665,7 @@ reason="Future leave cancellation test",
         leave.restoration_status,
         LeaveRequest.RestorationStatus.HR_REVIEW,
         )
-    @patch("apps.leave_management.services.timezone.localdate", return_value=date(2026, 10, 21))
+    @patch("apps.leave_management.services.timezone.localdate", return_value=date(2026, 10, 22))
     def test_partial_cancellation_restores_only_confirmed_unused_days(self, mock_day):
         leave = LeaveRequest.objects.create(
         employee=self.employee,
@@ -638,8 +722,8 @@ reason="Future leave cancellation test",
         leave.refresh_from_db()
 
     # Original 5-day deduction, then restore Monday,
-    # Tuesday, and future Friday: 4 days restored.
-        self.assertEqual(balance.remaining_days, 9)
+    # Tuesday, and future Friday: 3 days restored.
+        self.assertEqual(balance.remaining_days, 8)
         self.assertEqual(
         leave.restoration_status,
         LeaveRequest.RestorationStatus.COMPLETED,
