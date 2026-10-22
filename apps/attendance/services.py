@@ -4,8 +4,6 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count
 from django.utils import timezone
-
-from apps.accounts.audit import log_audit
 from apps.accounts.models import User
 
 from .models import Attendance
@@ -137,16 +135,8 @@ def correct_attendance(
     attendance.corrected_at = timezone.now()
     attendance.correction_note = reason.strip()
 
-    # Capture the original values before saving.
-    # Rebuild the old values from the database record for an accurate audit.
-    original = Attendance.objects.get(pk=attendance.pk)
-    old_values = {
-        "status": original.status,
-        "check_in": original.check_in,
-        "check_out": original.check_out,
-        "correction_note": original.correction_note,
-    }
-
+    # The audit event is recorded by AuditedModelMixin on save
+    # (actor from audit_actor), so no separate log_audit call is needed.
     attendance.save(
         update_fields=[
             "status",
@@ -158,26 +148,6 @@ def correct_attendance(
             "updated_at",
         ],
         audit_actor=actor,
-    )
-
-    def _jsonable(value):
-        return value.isoformat() if hasattr(value, "isoformat") else value
-
-    changes = {
-        field: {
-            "old": _jsonable(old_values[field]),
-            "new": _jsonable(getattr(attendance, field)),
-        }
-        for field in old_values
-        if old_values[field] != getattr(attendance, field)
-    }
-
-    # Include the reason even when it is the only changed field.
-    log_audit(
-        actor=actor,
-        action="UPDATE",
-        obj=attendance,
-        changes=changes,
     )
 
     return attendance

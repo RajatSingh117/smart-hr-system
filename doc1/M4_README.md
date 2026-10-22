@@ -36,7 +36,7 @@ The business rules live in `services.py` in each app. Other code should call the
 |---|---|
 | `check_in(employee)` | Creates today's attendance record with status `PRESENT`. Only active employees; one record per employee per day. |
 | `check_out(employee)` | Sets today's check-out time. Requires an earlier check-in the same day; rejects a second check-out. |
-| `correct_attendance(attendance_id, actor, *, status, check_in, check_out, reason)` | HR or Admin only. Requires a reason. Validates the status and the time order, stores who corrected it, when and why, and writes an audit event through `log_audit`. |
+| `correct_attendance(attendance_id, actor, *, status, check_in, check_out, reason)` | HR or Admin only. Requires a reason. Validates the status and the time order, stores who corrected it, when and why, and the audit event is recorded automatically on save by the audit mixin. |
 | `get_monthly_attendance_summary(employee, year, month)` | Returns a count for each status, the total days, and the employee ID, year and month. |
 
 ### `apps/leave_management/services.py`
@@ -145,8 +145,6 @@ Tests that depend on today's date patch `timezone.localdate`, so they do not cha
 ---
 
 ## Known issues
-
-- Three attendance tests (`test_hr_can_correct_attendance_with_reason`, `test_hr_correction_creates_audit_event`, `test_check_in_correction_creates_single_audit_event`) fail until `accounts/audit.py` is fixed. `log_audit` passes `user_agent=None` when no request is given, but `AuditEvent.user_agent` does not allow null. Suggested fix: use `user_agent or ""`. The `accounts` app was not changed in this work.
 - Changes made in Django admin skip the service rules. Use admin for viewing and test data only.
 
 ---
@@ -165,5 +163,5 @@ Tests that depend on today's date patch `timezone.localdate`, so they do not cha
 
 - **M5 (notifications):** the leave decision and attendance correction are stored on `LeaveRequest` and `Attendance`. The event format will be agreed in Week 3.
 - **M6 (frontend):** call the service functions listed above and do not set statuses directly. Status values are stored in upper case (for example `PENDING`).
-- **M2 (audit and permissions):** `correct_attendance` calls `log_audit`. Permission classes are not applied yet because there are no views.
+- **M2 (audit and permissions):** `correct_attendance` is audited through `AuditedModelMixin`.
 - **Please tell M4 before** renaming `Employee` or changing its primary key, since the foreign keys depend on it.
