@@ -61,4 +61,4 @@ class PublicHolidayAdmin(admin.ModelAdmin):
     list_filter = ("date",)
     search_fields = ("name",)
     ordering = ("date",)
-    inlines = [LeaveStatusHistoryInline]
+    

@@ -1,23 +1,13 @@
-<<<<<<< HEAD
 from datetime import date, timedelta
-=======
-from datetime import date
->>>>>>> origin/feature/m4-attendance-leave
-
+from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.employees.models import Employee
-<<<<<<< HEAD
 from apps.attendance.models import Attendance
 from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
 from .services import  (calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request,restore_leave_balance,)
-=======
-from .models import LeaveRequest, LeaveStatusHistory, LeaveType
-from .services import change_leave_status
-
->>>>>>> origin/feature/m4-attendance-leave
 
 class LeaveStatusTransitionTests(TestCase):
     @classmethod
@@ -47,7 +37,6 @@ class LeaveStatusTransitionTests(TestCase):
             end_date=date(2026, 11, 2),
             reason="Testing leave status transitions",
         )
-<<<<<<< HEAD
     def create_leave_balance(self, remaining_days, year=2026):
         return LeaveBalance.objects.create(
             employee=self.employee,
@@ -59,11 +48,6 @@ class LeaveStatusTransitionTests(TestCase):
     def test_pending_to_approved(self):
         leave = self.create_leave_request()
         self.create_leave_balance(remaining_days=5)
-=======
-
-    def test_pending_to_approved(self):
-        leave = self.create_leave_request()
->>>>>>> origin/feature/m4-attendance-leave
 
         change_leave_status(
             leave.pk,
@@ -73,10 +57,6 @@ class LeaveStatusTransitionTests(TestCase):
         )
 
         leave.refresh_from_db()
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/feature/m4-attendance-leave
         self.assertEqual(leave.status, LeaveRequest.Status.APPROVED)
         self.assertEqual(
             LeaveStatusHistory.objects.filter(
@@ -115,19 +95,12 @@ class LeaveStatusTransitionTests(TestCase):
 
     def test_approved_to_pending_is_rejected(self):
         leave = self.create_leave_request()
-<<<<<<< HEAD
         self.create_leave_balance(remaining_days=5)
-=======
-
->>>>>>> origin/feature/m4-attendance-leave
         change_leave_status(
             leave.pk,
             LeaveRequest.Status.APPROVED,
             changed_by=self.user,
-<<<<<<< HEAD
             remarks="Approved for testing.",
-=======
->>>>>>> origin/feature/m4-attendance-leave
         )
 
         with self.assertRaises(ValidationError):
@@ -139,10 +112,7 @@ class LeaveStatusTransitionTests(TestCase):
 
     def test_status_change_creates_one_history_entry(self):
         leave = self.create_leave_request()
-<<<<<<< HEAD
         self.create_leave_balance(remaining_days=5)
-=======
->>>>>>> origin/feature/m4-attendance-leave
 
         initial_count = LeaveStatusHistory.objects.filter(
             leave_request=leave
@@ -152,21 +122,15 @@ class LeaveStatusTransitionTests(TestCase):
             leave.pk,
             LeaveRequest.Status.APPROVED,
             changed_by=self.user,
-<<<<<<< HEAD
             remarks="Approved for testing.",
         )
 
 
-=======
-        )
-
->>>>>>> origin/feature/m4-attendance-leave
         final_count = LeaveStatusHistory.objects.filter(
             leave_request=leave
         ).count()
 
         self.assertEqual(final_count - initial_count, 1)
-<<<<<<< HEAD
 class LeaveApplicationValidationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -617,7 +581,8 @@ reason="Future leave cancellation test",
         leave.restoration_status,
         LeaveRequest.RestorationStatus.HR_REVIEW,
         )
-    def test_partial_cancellation_restores_only_confirmed_unused_days(self):
+    @patch("apps.leave_management.services.timezone.localdate", return_value=date(2026, 10, 21))
+    def test_partial_cancellation_restores_only_confirmed_unused_days(self, mock_day):
         leave = LeaveRequest.objects.create(
         employee=self.employee,
         leave_type=self.leave_type,
@@ -752,5 +717,3 @@ reason="Future leave cancellation test",
         )
         self.assertTrue(leave.restoration_review_reason)
 
-=======
->>>>>>> origin/feature/m4-attendance-leave
