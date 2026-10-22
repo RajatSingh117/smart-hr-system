@@ -6,7 +6,6 @@ from functools import wraps
 
 from django.contrib import admin
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
 from django.urls import include, path, reverse
 
@@ -19,8 +18,10 @@ def role_required(*allowed_roles):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             if request.user.role not in allowed_roles:
-                return HttpResponseForbidden(
-                    "You do not have permission to access this page."
+                return render(
+                    request,
+                    "errors/403.html",
+                    status=403,
                 )
             return view_func(request, *args, **kwargs)
         return wrapper
