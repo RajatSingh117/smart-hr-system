@@ -1,14 +1,30 @@
+
 <nav class="navbar navbar-dark bg-dark px-3 hr-navbar">
   <div class="d-flex align-items-center">
-    <button class="btn btn-outline-light btn-sm me-3 d-lg-none" id="sidebar-toggle" type="button" aria-label="Toggle menu">&#9776;</button>
+    <button
+      class="btn btn-outline-light btn-sm me-3 d-lg-none"
+      id="sidebar-toggle"
+      type="button"
+      aria-label="Toggle menu"
+      aria-expanded="false"
+      aria-controls="hr-sidebar"
+    >&#9776;</button>
+
     <span class="navbar-brand mb-0 h1">Smart HR</span>
   </div>
+
   <div class="d-flex align-items-center text-light">
-    <span class="me-2 d-none d-md-inline">{{ request.user.get_full_name|default:request.user.get_username }}</span>
+    <span class="me-2 d-none d-md-inline">
+      {{ request.user.get_full_name|default:request.user.get_username }}
+    </span>
+
     <span class="badge bg-primary text-uppercase me-3">{{ role }}</span>
+
     <form method="post" action="{% url 'accounts:logout' %}" class="m-0">
       {% csrf_token %}
-      <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+      <button type="submit" class="btn btn-outline-light btn-sm">
+        Logout
+      </button>
     </form>
   </div>
 </nav>

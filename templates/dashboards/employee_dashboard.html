@@ -11,10 +11,32 @@
   {% endfor %}
 </div>
 
-<div class="card">
-  <div class="card-header">My recent leave requests</div>
-  <div class="card-body">
-    {% include "partials/_empty_state.html" with message="You have not applied for any leave yet." %}
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">My Profile</div>
+      <div class="card-body">
+        <h5>{{ request.user.get_full_name|default:request.user.get_username }}</h5>
+        <p class="text-muted mb-1">
+          Email: {{ request.user.email }}
+        </p>
+        <p class="text-muted mb-3">
+          Role: {{ request.user.get_role_display }}
+        </p>
+        <a href="{% url 'accounts:profile' %}" class="btn btn-outline-primary btn-sm">
+          Edit Profile
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">My Recent Leave Requests</div>
+      <div class="card-body">
+        {% include "partials/_empty_state.html" with message="Leave request history will appear here once the leave workflow is connected." %}
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
