@@ -1,0 +1,21 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}{% if employee %}Edit employee{% else %}Add employee{% endif %}{% endblock %}
+{% block page_heading %}{% if employee %}Edit {{ employee.name }}{% else %}Add employee{% endif %}{% endblock %}
+
+{% block dashboard_body %}
+<div class="card" style="max-width: 720px;">
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form_field.html" with label="Full name" name="name" value=values.name error=errors.name required=True %}
+      {% include "partials/_form_field.html" with label="Email" name="email" type="email" value=values.email error=errors.email required=True %}
+      {% include "partials/_form_field.html" with label="Department" name="department" type="select" options=departments value=values.department error=errors.department required=True %}
+      {% include "partials/_form_field.html" with label="Job title" name="job_title" value=values.job_title error=errors.job_title required=True %}
+      {% include "partials/_form_field.html" with label="Status" name="status" type="select" options=statuses value=values.status error=errors.status required=True %}
+      {% include "partials/_form_field.html" with label="Joining date" name="joining_date" type="date" value=values.joining_date error=errors.joining_date required=True %}
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a href="{% url 'reports:preview_employee_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}
