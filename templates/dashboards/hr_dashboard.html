@@ -1,0 +1,20 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}HR Dashboard{% endblock %}
+{% block page_heading %}HR Dashboard{% endblock %}
+
+{% block dashboard_body %}
+<div class="row g-3 mb-4">
+  {% for card in cards %}
+    <div class="col-12 col-sm-6 col-xl-4">
+      {% include "partials/_stat_card.html" with title=card.title value=card.value icon=card.icon %}
+    </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">Pending leave requests</div>
+  <div class="card-body">
+    {% include "partials/_empty_state.html" with message="Pending leave requests will appear here once the leave workflow is connected." %}
+  </div>
+</div>
+{% endblock %}
