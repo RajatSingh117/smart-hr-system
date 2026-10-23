@@ -3,14 +3,18 @@ from decimal import Decimal
 from django.db import IntegrityError, transaction
 
 from django.test import TestCase
-
+from django.core import mail
+from django.test.utils import override_settings
+from unittest.mock import patch
 from apps.employees.models import Employee
 from apps.payroll.models import (
     SalaryComponent,
     PayrollPeriod,
     PayrollRecord,
     Payslip,
+    NotificationLog,
 )
+from apps.payroll.notifications import send_notification
 
 
 class SalaryComponentTest(TestCase):
@@ -116,6 +120,68 @@ class PayslipTest(TestCase):
             payroll_record=record,
             payslip_number="PAY-2026-001",
         )
-
         self.assertEqual(payslip.payslip_number, "PAY-2026-001")
         self.assertEqual(payslip.status, Payslip.Status.GENERATED)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class NotificationTest(TestCase):
+    def setUp(self):
+        self.recipient = "employee@example.com"
+        self.context = {
+            "employee_name": "Test Employee",
+            "status": "Approved",
+            "start_date": "2026-10-25",
+            "end_date": "2026-10-27",
+            "remarks": "Approved by HR",
+            "attendance_date": "2026-10-23",
+            "check_in": "09:00 AM",
+            "check_out": "05:00 PM",
+            "payroll_period": "October 2026",
+            "payslip_number": "PAY-2026-001",
+            "net_salary": "28000.00",
+        }
+
+    def test_notification_sent_successfully(self):
+        log = send_notification(
+            notification_name="leave_decision",
+            recipient=self.recipient,
+            context=self.context,
+            subject="Leave Request Update",
+        )
+
+        self.assertEqual(log.status, NotificationLog.Status.SENT)
+        self.assertEqual(log.recipient, self.recipient)
+        self.assertIsNotNone(log.sent_at)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.recipient])
+        self.assertIn(
+            "Test Employee",
+            mail.outbox[0].alternatives[0][0],
+        )
+
+    @patch("apps.payroll.notifications.EmailMultiAlternatives.send")
+    def test_notification_failure_is_logged(self, mock_send):
+        mock_send.side_effect = Exception("Email delivery failed")
+
+        log = send_notification(
+            notification_name="leave_decision",
+            recipient=self.recipient,
+            context=self.context,
+            subject="Leave Request Update",
+        )
+
+        self.assertEqual(log.status, NotificationLog.Status.FAILED)
+        self.assertEqual(log.error_message, "Email delivery failed")
+        self.assertIsNone(log.sent_at)
+
+    def test_unknown_notification_type_raises_error(self):
+        with self.assertRaises(ValueError):
+            send_notification(
+                notification_name="unknown_type",
+                recipient=self.recipient,
+                context=self.context,
+                subject="Test",
+            )
+
+        self.assertEqual(NotificationLog.objects.count(), 0)
