@@ -1,0 +1,42 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}My Dashboard{% endblock %}
+{% block page_heading %}Welcome, {{ request.user.get_full_name|default:request.user.get_username }}{% endblock %}
+
+{% block dashboard_body %}
+<div class="row g-3 mb-4">
+  {% for card in cards %}
+    <div class="col-12 col-sm-6 col-xl-3">
+      {% include "partials/_stat_card.html" with title=card.title value=card.value icon=card.icon %}
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">My Profile</div>
+      <div class="card-body">
+        <h5>{{ request.user.get_full_name|default:request.user.get_username }}</h5>
+        <p class="text-muted mb-1">
+          Email: {{ request.user.email }}
+        </p>
+        <p class="text-muted mb-3">
+          Role: {{ request.user.get_role_display }}
+        </p>
+        <a href="{% url 'accounts:profile' %}" class="btn btn-outline-primary btn-sm">
+          Edit Profile
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">My Recent Leave Requests</div>
+      <div class="card-body">
+        {% include "partials/_empty_state.html" with message="Leave request history will appear here once the leave workflow is connected." %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
