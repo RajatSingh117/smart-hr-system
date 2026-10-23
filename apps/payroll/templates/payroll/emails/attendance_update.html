@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Attendance Update</title>
+</head>
+<body>
+    <h2>Hello {{ employee_name }},</h2>
+
+    <p>Your attendance record has been updated.</p>
+
+    <p><strong>Date:</strong> {{ attendance_date }}</p>
+
+    <p><strong>Status:</strong> {{ status }}</p>
+
+    <p><strong>Check-in Time:</strong>
+        {{ check_in|default:"Not recorded" }}
+    </p>
+
+    <p><strong>Check-out Time:</strong>
+        {{ check_out|default:"Not recorded" }}
+    </p>
+
+    <p>If you have any questions, please contact HR.</p>
+
+    <p>Regards,<br>
+    HR Department</p>
+</body>
+</html>

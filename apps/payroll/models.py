@@ -134,6 +134,39 @@ class Payslip(models.Model):
         default=Status.GENERATED,
     )
     generated_at = models.DateTimeField(auto_now_add=True)
-
     def __str__(self):
         return self.payslip_number
+
+
+class NotificationLog(models.Model):
+    class NotificationType(models.TextChoices):
+        LEAVE_DECISION = "LEAVE_DECISION", "Leave Decision"
+        ATTENDANCE_UPDATE = "ATTENDANCE_UPDATE", "Attendance Update"
+        PAYSLIP_READY = "PAYSLIP_READY", "Payslip Ready"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        SENT = "SENT", "Sent"
+        FAILED = "FAILED", "Failed"
+
+    recipient = models.EmailField()
+    notification_type = models.CharField(
+        max_length=30,
+        choices=NotificationType.choices,
+    )
+    subject = models.CharField(max_length=255)
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.notification_type} - {self.recipient} ({self.status})"
+    
