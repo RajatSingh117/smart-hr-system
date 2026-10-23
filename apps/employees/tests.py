@@ -1,13 +1,34 @@
 from datetime import date
 from decimal import Decimal
 
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
+from django.contrib.messages.middleware import MessageMiddleware
+from django.contrib.sessions.middleware import SessionMiddleware
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.http import HttpResponse
+from django.test import RequestFactory, TestCase
 
+from django.urls import reverse
+
+from apps.accounts.models import AuditEvent
+from apps.employees.forms import DepartmentForm, EmployeeForm
 from apps.employees.models import Department, JobTitle, Employee
+from apps.employees.views import (
+    department_create,
+    department_delete,
+    department_edit,
+    department_list,
+    employee_create,
+    employee_detail,
+    employee_edit,
+    employee_list,
+)
 
 User = get_user_model()
 
@@ -245,3 +266,875 @@ class EmployeeModelTests(TestCase):
 
         emp.delete(audit_actor=self.user)
         self.assertFalse(Employee.objects.filter(employee_id='EMP-AUDIT').exists())
+
+
+class EmployeeFormTests(TestCase):
+    """Unit tests for EmployeeForm validation and user linking rules."""
+
+    def setUp(self):
+        self.dept = Department.objects.create(name='Technology')
+        self.job_title = JobTitle.objects.create(title='Software Engineer')
+        self.user1 = User.objects.create_user(
+            email='user1@example.com',
+            password='TestPassword123!',
+        )
+        self.user2 = User.objects.create_user(
+            email='user2@example.com',
+            password='TestPassword123!',
+        )
+        self.existing_emp = Employee.objects.create(
+            user=self.user1,
+            employee_id='EMP-100',
+            full_name='First Employee',
+            email='emp1@example.com',
+            phone='+1-555-0101',
+            department=self.dept,
+            job_title=self.job_title,
+            joining_date=date(2024, 1, 1),
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal('5000.00'),
+        )
+
+    def test_valid_employee_form_without_user(self):
+        data = {
+            'employee_id': 'EMP-200',
+            'full_name': 'Second Employee',
+            'email': 'emp2@example.com',
+            'phone': '+1-555-0102',
+            'department': self.dept.pk,
+            'job_title': self.job_title.pk,
+            'joining_date': '2024-02-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+            'base_salary': '6000.00',
+            'address': '200 Tech Park',
+            'emergency_contact': 'Contact Person (+1-555-0199)',
+            'user': '',
+        }
+        form = EmployeeForm(data=data)
+        self.assertTrue(form.is_valid(), form.errors)
+        emp = form.save()
+        self.assertEqual(emp.employee_id, 'EMP-200')
+        self.assertIsNone(emp.user)
+
+    def test_valid_employee_form_with_unlinked_user(self):
+        data = {
+            'employee_id': 'EMP-201',
+            'full_name': 'Third Employee',
+            'email': 'emp3@example.com',
+            'joining_date': '2024-02-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+            'base_salary': '7000.00',
+            'user': self.user2.pk,
+        }
+        form = EmployeeForm(data=data)
+        self.assertTrue(form.is_valid(), form.errors)
+        emp = form.save()
+        self.assertEqual(emp.user, self.user2)
+
+    def test_duplicate_employee_id_rejected_case_insensitive(self):
+        data = {
+            'employee_id': 'emp-100',  # lowercase duplicate
+            'full_name': 'Duplicate ID Employee',
+            'email': 'unique_email@example.com',
+            'joining_date': '2024-03-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+        }
+        form = EmployeeForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('employee_id', form.errors)
+        self.assertIn('already exists', form.errors['employee_id'][0])
+
+    def test_duplicate_email_rejected_case_insensitive(self):
+        data = {
+            'employee_id': 'EMP-NEW',
+            'full_name': 'Duplicate Email Employee',
+            'email': 'EMP1@EXAMPLE.COM',  # uppercase duplicate
+            'joining_date': '2024-03-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+        }
+        form = EmployeeForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
+        self.assertIn('already exists', form.errors['email'][0])
+
+    def test_edit_same_record_allows_same_id_and_email(self):
+        data = {
+            'employee_id': 'EMP-100',
+            'full_name': 'First Employee Renamed',
+            'email': 'emp1@example.com',
+            'phone': '+1-555-0999',
+            'department': self.dept.pk,
+            'job_title': self.job_title.pk,
+            'joining_date': '2024-01-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+            'base_salary': '5500.00',
+            'user': self.user1.pk,
+        }
+        form = EmployeeForm(data=data, instance=self.existing_emp)
+        self.assertTrue(form.is_valid(), form.errors)
+        updated = form.save()
+        self.assertEqual(updated.full_name, 'First Employee Renamed')
+
+    def test_edit_change_to_existing_duplicate_id_rejected(self):
+        other_emp = Employee.objects.create(
+            employee_id='EMP-999',
+            full_name='Other Person',
+            email='other@example.com',
+            joining_date=date(2024, 1, 1),
+        )
+        data = {
+            'employee_id': 'EMP-100',  # conflicts with existing_emp
+            'full_name': 'Other Person Renamed',
+            'email': 'other@example.com',
+            'joining_date': '2024-01-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+        }
+        form = EmployeeForm(data=data, instance=other_emp)
+        self.assertFalse(form.is_valid())
+        self.assertIn('employee_id', form.errors)
+
+    def test_edit_change_to_existing_duplicate_email_rejected(self):
+        other_emp = Employee.objects.create(
+            employee_id='EMP-999',
+            full_name='Other Person',
+            email='other@example.com',
+            joining_date=date(2024, 1, 1),
+        )
+        data = {
+            'employee_id': 'EMP-999',
+            'full_name': 'Other Person Renamed',
+            'email': 'EMP1@EXAMPLE.COM',  # conflicts with existing_emp
+            'joining_date': '2024-01-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+        }
+        form = EmployeeForm(data=data, instance=other_emp)
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
+
+    def test_user_queryset_contains_only_unlinked_users_on_create(self):
+        form = EmployeeForm()
+        user_queryset = form.fields['user'].queryset
+        self.assertIn(self.user2, user_queryset)
+        self.assertNotIn(self.user1, user_queryset)
+
+    def test_user_queryset_includes_currently_linked_user_on_edit(self):
+        form = EmployeeForm(instance=self.existing_emp)
+        user_queryset = form.fields['user'].queryset
+        self.assertIn(self.user1, user_queryset)
+        self.assertIn(self.user2, user_queryset)
+
+    def test_cannot_link_user_already_linked_to_another_employee(self):
+        data = {
+            'employee_id': 'EMP-777',
+            'full_name': 'Unauthorized User Link',
+            'email': 'emp777@example.com',
+            'joining_date': '2024-05-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+            'user': self.user1.pk,  # user1 is already linked to existing_emp
+        }
+        form = EmployeeForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('user', form.errors)
+
+    def test_negative_salary_rejected(self):
+        data = {
+            'employee_id': 'EMP-NEG',
+            'full_name': 'Negative Salary Person',
+            'email': 'neg@example.com',
+            'joining_date': '2024-01-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+            'base_salary': '-500.00',
+        }
+        form = EmployeeForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('base_salary', form.errors)
+
+
+class DepartmentFormTests(TestCase):
+    """Unit tests for DepartmentForm validation and head assignment."""
+
+    def setUp(self):
+        self.dept = Department.objects.create(
+            name='Human Resources',
+            description='People operations and culture',
+        )
+        self.emp = Employee.objects.create(
+            employee_id='EMP-HR-01',
+            full_name='HR Manager',
+            email='hr.manager@example.com',
+            joining_date=date(2024, 1, 1),
+        )
+
+    def test_valid_department_form(self):
+        data = {
+            'name': 'Finance',
+            'description': 'Financial planning and accounting',
+            'department_head': self.emp.pk,
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data)
+        self.assertTrue(form.is_valid(), form.errors)
+        dept = form.save()
+        self.assertEqual(dept.name, 'Finance')
+        self.assertEqual(dept.department_head, self.emp)
+        self.assertTrue(dept.is_active)
+
+    def test_duplicate_department_name_rejected_case_insensitive(self):
+        data = {
+            'name': 'human resources',  # lowercase duplicate
+            'description': 'Duplicate HR department',
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('name', form.errors)
+        self.assertIn('already exists', form.errors['name'][0])
+
+    def test_edit_same_department_allows_same_name(self):
+        data = {
+            'name': 'Human Resources',
+            'description': 'Updated description',
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data, instance=self.dept)
+        self.assertTrue(form.is_valid(), form.errors)
+        updated = form.save()
+        self.assertEqual(updated.description, 'Updated description')
+
+    def test_edit_change_to_existing_department_name_rejected(self):
+        other_dept = Department.objects.create(name='Marketing')
+        data = {
+            'name': 'Human Resources',  # conflicts with self.dept
+            'description': 'Attempting duplicate name rename',
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data, instance=other_dept)
+        self.assertFalse(form.is_valid())
+        self.assertIn('name', form.errors)
+
+    def test_department_head_optional(self):
+        data = {
+            'name': 'Legal',
+            'description': 'Legal compliance',
+            'department_head': '',
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data)
+        self.assertTrue(form.is_valid(), form.errors)
+        dept = form.save()
+        self.assertIsNone(dept.department_head)
+
+
+class EmployeeViewTests(TestCase):
+    """Unit tests for employee views: RBAC, detail, create, edit, search, filters, pagination."""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.admin_user = User.objects.create_superuser(
+            email='admin@test.com',
+            password='TestPassword123!',
+        )
+        self.hr_user = User.objects.create_user(
+            email='hr@test.com',
+            password='TestPassword123!',
+            role=User.Role.HR,
+        )
+        self.employee_user1 = User.objects.create_user(
+            email='emp1_user@test.com',
+            password='TestPassword123!',
+            role=User.Role.EMPLOYEE,
+        )
+        self.employee_user2 = User.objects.create_user(
+            email='emp2_user@test.com',
+            password='TestPassword123!',
+            role=User.Role.EMPLOYEE,
+        )
+
+        self.dept_eng = Department.objects.create(name='Engineering')
+        self.dept_sales = Department.objects.create(name='Sales')
+        self.job_title = JobTitle.objects.create(title='Engineer')
+
+        self.emp1 = Employee.objects.create(
+            user=self.employee_user1,
+            employee_id='EMP-001',
+            full_name='Alice Smith',
+            email='alice@example.com',
+            phone='+1-555-0101',
+            department=self.dept_eng,
+            job_title=self.job_title,
+            joining_date=date(2024, 1, 1),
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal('7000.00'),
+            address='123 Main St',
+            emergency_contact='Bob Smith (+1-555-0100)',
+        )
+        self.emp2 = Employee.objects.create(
+            user=self.employee_user2,
+            employee_id='EMP-002',
+            full_name='Bob Jones',
+            email='bob@example.com',
+            phone='+1-555-0102',
+            department=self.dept_sales,
+            job_title=self.job_title,
+            joining_date=date(2024, 2, 1),
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+            base_salary=Decimal('6000.00'),
+        )
+
+    def _prepare_request(self, request, user=None):
+        request.user = user if user else AnonymousUser()
+        SessionMiddleware(lambda r: None).process_request(request)
+        MessageMiddleware(lambda r: None).process_request(request)
+        return request
+
+    def _fake_render(self, request, template_name, context=None, status=200):
+        resp = HttpResponse(f'rendered {template_name}', status=status)
+        resp.template_name = template_name
+        resp.context = context or {}
+        return resp
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_access_admin_and_hr(self, mock_render):
+        mock_render.side_effect = self._fake_render
+
+        for role_user in (self.admin_user, self.hr_user):
+            with self.subTest(role=role_user.role):
+                request = self.factory.get('/employees/')
+                self._prepare_request(request, role_user)
+                response = employee_list(request)
+                self.assertEqual(response.status_code, 200)
+
+    def test_employee_list_access_employee_forbidden(self):
+        request = self.factory.get('/employees/')
+        self._prepare_request(request, self.employee_user1)
+        response = employee_list(request)
+        self.assertEqual(response.status_code, 403)
+
+    def test_employee_list_unauthenticated_redirects(self):
+        request = self.factory.get('/employees/')
+        self._prepare_request(request)
+        response = employee_list(request)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_search_by_name(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        request = self.factory.get('/employees/?q=Alice')
+        self._prepare_request(request, self.hr_user)
+        response = employee_list(request)
+        self.assertEqual(response.status_code, 200)
+
+        results = list(response.context['page_obj'].object_list)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].full_name, 'Alice Smith')
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_search_by_email(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        request = self.factory.get('/employees/?q=bob@example.com')
+        self._prepare_request(request, self.hr_user)
+        response = employee_list(request)
+        self.assertEqual(response.status_code, 200)
+
+        results = list(response.context['page_obj'].object_list)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].email, 'bob@example.com')
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_search_by_employee_id_case_insensitive(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        request = self.factory.get('/employees/?q=emp-001')
+        self._prepare_request(request, self.hr_user)
+        response = employee_list(request)
+        self.assertEqual(response.status_code, 200)
+
+        results = list(response.context['page_obj'].object_list)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].employee_id, 'EMP-001')
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_filter_by_department_id_and_name(self, mock_render):
+        mock_render.side_effect = self._fake_render
+
+        # Filter by department ID
+        req_id = self.factory.get(f'/employees/?department={self.dept_eng.pk}')
+        self._prepare_request(req_id, self.hr_user)
+        resp_id = employee_list(req_id)
+        results_id = list(resp_id.context['page_obj'].object_list)
+        self.assertEqual(len(results_id), 1)
+        self.assertEqual(results_id[0], self.emp1)
+
+        # Filter by department name (case-insensitive)
+        req_name = self.factory.get('/employees/?department=sales')
+        self._prepare_request(req_name, self.hr_user)
+        resp_name = employee_list(req_name)
+        results_name = list(resp_name.context['page_obj'].object_list)
+        self.assertEqual(len(results_name), 1)
+        self.assertEqual(results_name[0], self.emp2)
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_filter_by_employment_status(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        request = self.factory.get('/employees/?employment_status=ON_LEAVE')
+        self._prepare_request(request, self.hr_user)
+        response = employee_list(request)
+        self.assertEqual(response.status_code, 200)
+
+        results = list(response.context['page_obj'].object_list)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], self.emp2)
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_pagination_10_per_page(self, mock_render):
+        mock_render.side_effect = self._fake_render
+
+        # Create 12 more employees in Engineering (13 in Engineering total)
+        for i in range(12):
+            Employee.objects.create(
+                employee_id=f'EMP-PAG-{i:02d}',
+                full_name=f'Paging Employee {i:02d}',
+                email=f'paging{i}@example.com',
+                department=self.dept_eng,
+                joining_date=date(2024, 1, 1),
+            )
+
+        # Page 1
+        req_p1 = self.factory.get('/employees/?page=1&department=Engineering')
+        self._prepare_request(req_p1, self.hr_user)
+        resp_p1 = employee_list(req_p1)
+        self.assertEqual(len(resp_p1.context['employees']), 10)
+        self.assertTrue(resp_p1.context['is_paginated'])
+        self.assertEqual(resp_p1.context['pagination_query_string'], 'department=Engineering')
+
+        # Page 2
+        req_p2 = self.factory.get('/employees/?page=2&department=Engineering')
+        self._prepare_request(req_p2, self.hr_user)
+        resp_p2 = employee_list(req_p2)
+        self.assertEqual(len(resp_p2.context['employees']), 3)
+
+    @patch('apps.employees.views.render')
+    def test_employee_detail_admin_and_hr_can_view_any(self, mock_render):
+        mock_render.side_effect = self._fake_render
+
+        for role_user in (self.admin_user, self.hr_user):
+            with self.subTest(role=role_user.role):
+                request = self.factory.get(f'/employees/{self.emp1.pk}/')
+                self._prepare_request(request, role_user)
+                response = employee_detail(request, pk=self.emp1.pk)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('profile_completeness', response.context)
+                self.assertEqual(response.context['profile_completeness'], 100)
+
+    @patch('apps.employees.views.render')
+    def test_employee_detail_employee_can_view_own_profile(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        request = self.factory.get(f'/employees/{self.emp1.pk}/')
+        self._prepare_request(request, self.employee_user1)
+        response = employee_detail(request, pk=self.emp1.pk)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['is_self'])
+        self.assertEqual(response.context['employee'], self.emp1)
+
+    def test_employee_detail_employee_cannot_view_other_profile(self):
+        # employee_user1 attempts to view emp2 (owned by employee_user2)
+        request = self.factory.get(f'/employees/{self.emp2.pk}/')
+        self._prepare_request(request, self.employee_user1)
+        response = employee_detail(request, pk=self.emp2.pk)
+        self.assertEqual(response.status_code, 403)
+
+    def test_employee_detail_unauthenticated_redirects(self):
+        request = self.factory.get(f'/employees/{self.emp1.pk}/')
+        self._prepare_request(request)
+        response = employee_detail(request, pk=self.emp1.pk)
+        self.assertEqual(response.status_code, 302)
+
+    def test_employee_create_hr_success_and_audit_actor(self):
+        data = {
+            'employee_id': 'EMP-NEW-CREATE',
+            'full_name': 'New Created Employee',
+            'email': 'newcreated@example.com',
+            'phone': '+1-555-9000',
+            'department': self.dept_eng.pk,
+            'job_title': self.job_title.pk,
+            'joining_date': '2024-04-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+            'base_salary': '8500.00',
+            'address': '456 Innovation Way',
+            'emergency_contact': 'Emergency Contact',
+            'user': '',
+        }
+        request = self.factory.post('/employees/create/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = employee_create(request)
+        self.assertEqual(response.status_code, 302)
+
+        created_emp = Employee.objects.get(employee_id='EMP-NEW-CREATE')
+        self.assertEqual(created_emp.full_name, 'New Created Employee')
+        ct = ContentType.objects.get_for_model(Employee)
+        audit_event = AuditEvent.objects.filter(
+            content_type=ct,
+            object_id=created_emp.pk,
+            action=AuditEvent.Action.CREATE,
+        ).first()
+        self.assertIsNotNone(audit_event)
+        self.assertEqual(audit_event.actor, self.hr_user)
+
+    @patch('apps.employees.views.render')
+    def test_employee_create_invalid_form_rerenders(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        data = {
+            'employee_id': 'EMP-INVALID',
+            # missing full_name, email, joining_date
+        }
+        request = self.factory.post('/employees/create/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = employee_create(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.template_name, 'employees/employee_form.html')
+        self.assertFalse(response.context['form'].is_valid())
+
+    def test_employee_create_employee_role_forbidden(self):
+        data = {
+            'employee_id': 'EMP-FORBIDDEN',
+            'full_name': 'Forbidden Employee',
+            'email': 'forbidden@example.com',
+            'joining_date': '2024-01-01',
+        }
+        request = self.factory.post('/employees/create/', data=data)
+        self._prepare_request(request, self.employee_user1)
+        response = employee_create(request)
+        self.assertEqual(response.status_code, 403)
+
+    def test_employee_edit_hr_success_and_audit_actor(self):
+        data = {
+            'employee_id': 'EMP-001',
+            'full_name': 'Alice Smith Edited',
+            'email': 'alice@example.com',
+            'phone': '+1-555-0999',
+            'department': self.dept_eng.pk,
+            'job_title': self.job_title.pk,
+            'joining_date': '2024-01-01',
+            'employment_status': Employee.EmploymentStatus.ACTIVE,
+            'base_salary': '7500.00',
+            'address': '123 Main St Edited',
+            'emergency_contact': 'Bob Smith (+1-555-0100)',
+            'user': self.employee_user1.pk,
+        }
+        request = self.factory.post(f'/employees/{self.emp1.pk}/edit/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = employee_edit(request, pk=self.emp1.pk)
+        self.assertEqual(response.status_code, 302)
+
+        self.emp1.refresh_from_db()
+        self.assertEqual(self.emp1.full_name, 'Alice Smith Edited')
+        self.assertEqual(self.emp1.base_salary, Decimal('7500.00'))
+        ct = ContentType.objects.get_for_model(Employee)
+        audit_event = AuditEvent.objects.filter(
+            content_type=ct,
+            object_id=self.emp1.pk,
+            action=AuditEvent.Action.UPDATE,
+        ).first()
+        self.assertIsNotNone(audit_event)
+        self.assertEqual(audit_event.actor, self.hr_user)
+
+    def test_employee_edit_employee_role_forbidden(self):
+        data = {
+            'employee_id': 'EMP-001',
+            'full_name': 'Hacker Edit',
+            'email': 'alice@example.com',
+            'joining_date': '2024-01-01',
+        }
+        request = self.factory.post(f'/employees/{self.emp1.pk}/edit/', data=data)
+        self._prepare_request(request, self.employee_user1)
+        response = employee_edit(request, pk=self.emp1.pk)
+        self.assertEqual(response.status_code, 403)
+
+
+class DepartmentViewTests(TestCase):
+    """Unit tests for Department CRUD views: permissions, creation, update, and protected deletion."""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.admin_user = User.objects.create_superuser(
+            email='dept_admin@test.com',
+            password='TestPassword123!',
+        )
+        self.hr_user = User.objects.create_user(
+            email='dept_hr@test.com',
+            password='TestPassword123!',
+            role=User.Role.HR,
+        )
+        self.employee_user = User.objects.create_user(
+            email='dept_emp@test.com',
+            password='TestPassword123!',
+            role=User.Role.EMPLOYEE,
+        )
+
+        self.dept = Department.objects.create(
+            name='Engineering',
+            description='Core Tech',
+        )
+        self.emp = Employee.objects.create(
+            employee_id='EMP-D01',
+            full_name='Staff Member',
+            email='staff@example.com',
+            department=self.dept,
+            joining_date=date(2024, 1, 1),
+        )
+
+    def _prepare_request(self, request, user=None):
+        request.user = user if user else AnonymousUser()
+        SessionMiddleware(lambda r: None).process_request(request)
+        MessageMiddleware(lambda r: None).process_request(request)
+        return request
+
+    def _fake_render(self, request, template_name, context=None, status=200):
+        resp = HttpResponse(f'rendered {template_name}', status=status)
+        resp.template_name = template_name
+        resp.context = context or {}
+        return resp
+
+    @patch('apps.employees.views.render')
+    def test_department_list_access_admin_and_hr(self, mock_render):
+        mock_render.side_effect = self._fake_render
+
+        for role_user in (self.admin_user, self.hr_user):
+            with self.subTest(role=role_user.role):
+                request = self.factory.get('/employees/departments/')
+                self._prepare_request(request, role_user)
+                response = department_list(request)
+                self.assertEqual(response.status_code, 200)
+
+                departments = list(response.context['departments'])
+                self.assertEqual(len(departments), 1)
+                self.assertEqual(departments[0].employee_count, 1)
+
+    def test_department_list_employee_forbidden(self):
+        request = self.factory.get('/employees/departments/')
+        self._prepare_request(request, self.employee_user)
+        response = department_list(request)
+        self.assertEqual(response.status_code, 403)
+
+    def test_department_list_unauthenticated_redirects(self):
+        request = self.factory.get('/employees/departments/')
+        self._prepare_request(request)
+        response = department_list(request)
+        self.assertEqual(response.status_code, 302)
+
+    def test_department_create_hr_success_and_audit(self):
+        data = {
+            'name': 'Marketing',
+            'description': 'Brand and growth',
+            'department_head': self.emp.pk,
+            'is_active': True,
+        }
+        request = self.factory.post('/employees/departments/create/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = department_create(request)
+        self.assertEqual(response.status_code, 302)
+
+        created_dept = Department.objects.get(name='Marketing')
+        self.assertEqual(created_dept.department_head, self.emp)
+
+        ct = ContentType.objects.get_for_model(Department)
+        audit_event = AuditEvent.objects.filter(
+            content_type=ct,
+            object_id=created_dept.pk,
+            action=AuditEvent.Action.CREATE,
+        ).first()
+        self.assertIsNotNone(audit_event)
+        self.assertEqual(audit_event.actor, self.hr_user)
+
+    @patch('apps.employees.views.render')
+    def test_department_create_invalid_form_rerenders(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        data = {'name': ''}  # empty required name
+        request = self.factory.post('/employees/departments/create/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = department_create(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.template_name, 'employees/department_form.html')
+        self.assertFalse(response.context['form'].is_valid())
+
+    def test_department_create_employee_forbidden(self):
+        data = {'name': 'Unauthorized Dept'}
+        request = self.factory.post('/employees/departments/create/', data=data)
+        self._prepare_request(request, self.employee_user)
+        response = department_create(request)
+        self.assertEqual(response.status_code, 403)
+
+    def test_department_edit_hr_success_and_audit(self):
+        data = {
+            'name': 'Engineering & Research',
+            'description': 'Advanced Technology',
+            'is_active': True,
+        }
+        request = self.factory.post(f'/employees/departments/{self.dept.pk}/edit/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = department_edit(request, pk=self.dept.pk)
+        self.assertEqual(response.status_code, 302)
+
+        self.dept.refresh_from_db()
+        self.assertEqual(self.dept.name, 'Engineering & Research')
+        self.assertEqual(self.dept.description, 'Advanced Technology')
+
+        ct = ContentType.objects.get_for_model(Department)
+        audit_event = AuditEvent.objects.filter(
+            content_type=ct,
+            object_id=self.dept.pk,
+            action=AuditEvent.Action.UPDATE,
+        ).first()
+        self.assertIsNotNone(audit_event)
+        self.assertEqual(audit_event.actor, self.hr_user)
+
+    def test_department_edit_employee_forbidden(self):
+        data = {'name': 'Hacker Dept'}
+        request = self.factory.post(f'/employees/departments/{self.dept.pk}/edit/', data=data)
+        self._prepare_request(request, self.employee_user)
+        response = department_edit(request, pk=self.dept.pk)
+        self.assertEqual(response.status_code, 403)
+
+    @patch('apps.employees.views.render')
+    def test_department_delete_get_renders_confirmation_and_does_not_delete(self, mock_render):
+        mock_render.side_effect = self._fake_render
+        request = self.factory.get(f'/employees/departments/{self.dept.pk}/delete/')
+        self._prepare_request(request, self.hr_user)
+        response = department_delete(request, pk=self.dept.pk)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.template_name, 'employees/department_confirm_delete.html')
+        self.assertTrue(response.context['has_assigned_employees'])
+        self.assertTrue(Department.objects.filter(pk=self.dept.pk).exists())
+
+    def test_department_delete_assigned_employees_blocked(self):
+        # self.dept has self.emp assigned
+        request = self.factory.post(f'/employees/departments/{self.dept.pk}/delete/')
+        self._prepare_request(request, self.hr_user)
+        response = department_delete(request, pk=self.dept.pk)
+        self.assertEqual(response.status_code, 302)
+
+        # Department must still exist
+        self.assertTrue(Department.objects.filter(pk=self.dept.pk).exists())
+
+    def test_department_delete_unassigned_success_and_audit(self):
+        empty_dept = Department.objects.create(name='Temporary Dept')
+        empty_dept_id = empty_dept.pk
+
+        request = self.factory.post(f'/employees/departments/{empty_dept_id}/delete/')
+        self._prepare_request(request, self.hr_user)
+        response = department_delete(request, pk=empty_dept_id)
+        self.assertEqual(response.status_code, 302)
+
+        self.assertFalse(Department.objects.filter(pk=empty_dept_id).exists())
+
+        ct = ContentType.objects.get_for_model(Department)
+        audit_event = AuditEvent.objects.filter(
+            content_type=ct,
+            object_id=empty_dept_id,
+            action=AuditEvent.Action.DELETE,
+        ).first()
+        self.assertIsNotNone(audit_event)
+        self.assertEqual(audit_event.actor, self.hr_user)
+
+    def test_department_delete_employee_forbidden(self):
+        request = self.factory.post(f'/employees/departments/{self.dept.pk}/delete/')
+        self._prepare_request(request, self.employee_user)
+        response = department_delete(request, pk=self.dept.pk)
+        self.assertEqual(response.status_code, 403)
+
+
+class EmployeeIntegrationAndTemplateTests(TestCase):
+    """End-to-end integration and template rendering tests using Django test client."""
+
+    def setUp(self):
+        self.hr = User.objects.create_user(
+            email='hr_client@test.com',
+            password='TestPassword123!',
+            role=User.Role.HR,
+        )
+        self.employee_user = User.objects.create_user(
+            email='emp_client@test.com',
+            password='TestPassword123!',
+            role=User.Role.EMPLOYEE,
+        )
+        self.dept = Department.objects.create(
+            name='Engineering',
+            description='Tech Division',
+        )
+        self.job = JobTitle.objects.create(title='Lead Architect')
+        self.emp = Employee.objects.create(
+            user=self.employee_user,
+            employee_id='EMP-CLI-01',
+            full_name='Clara Barton',
+            email='clara@example.com',
+            phone='+1-555-4321',
+            department=self.dept,
+            job_title=self.job,
+            joining_date=date(2024, 1, 1),
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal('9000.00'),
+            address='789 Nurse Way',
+            emergency_contact='Emergency Contact',
+        )
+
+    def test_employee_list_renders_correct_template_and_badges(self):
+        self.client.force_login(self.hr)
+        url = reverse('employees:employee_list')
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'employees/employee_list.html')
+        self.assertContains(response, 'Clara Barton')
+        self.assertContains(response, 'EMP-CLI-01')
+        self.assertContains(response, 'Active')
+
+    def test_employee_detail_renders_progress_bar_and_completeness(self):
+        self.client.force_login(self.hr)
+        url = reverse('employees:employee_detail', args=[self.emp.pk])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'employees/employee_detail.html')
+        self.assertContains(response, 'Profile Completeness')
+        self.assertContains(response, '100%')
+        self.assertContains(response, 'progress-bar')
+
+    def test_employee_create_and_edit_templates(self):
+        self.client.force_login(self.hr)
+
+        # GET create
+        create_url = reverse('employees:employee_create')
+        res_create = self.client.get(create_url)
+        self.assertEqual(res_create.status_code, 200)
+        self.assertTemplateUsed(res_create, 'employees/employee_form.html')
+        self.assertContains(res_create, 'Create Employee')
+
+        # GET edit
+        edit_url = reverse('employees:employee_edit', args=[self.emp.pk])
+        res_edit = self.client.get(edit_url)
+        self.assertEqual(res_edit.status_code, 200)
+        self.assertTemplateUsed(res_edit, 'employees/employee_form.html')
+        self.assertContains(res_edit, 'Save Changes')
+
+    def test_department_templates_and_deletion_protection_page(self):
+        self.client.force_login(self.hr)
+
+        # Department list
+        dept_list_url = reverse('employees:department_list')
+        res_list = self.client.get(dept_list_url)
+        self.assertEqual(res_list.status_code, 200)
+        self.assertTemplateUsed(res_list, 'employees/department_list.html')
+        self.assertContains(res_list, 'Engineering')
+
+        # Department create
+        dept_create_url = reverse('employees:department_create')
+        res_create = self.client.get(dept_create_url)
+        self.assertEqual(res_create.status_code, 200)
+        self.assertTemplateUsed(res_create, 'employees/department_form.html')
+
+        # Department delete confirmation with assigned employees
+        dept_del_url = reverse('employees:department_delete', args=[self.dept.pk])
+        res_del = self.client.get(dept_del_url)
+        self.assertEqual(res_del.status_code, 200)
+        self.assertTemplateUsed(res_del, 'employees/department_confirm_delete.html')
+        self.assertContains(res_del, 'Deletion Blocked by Referential Integrity')
