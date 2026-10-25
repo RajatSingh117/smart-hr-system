@@ -43,7 +43,7 @@ class MenuTests(TestCase):
         for role in (ADMIN, HR, EMPLOYEE):
             self.assertIn("Dashboard", self.labels(role))
 
-@override_settings(ROOT_URLCONF="apps.reports.urls")
+@override_settings(ROOT_URLCONF="apps.reports.test_urls")
 class DashboardAccessTests(TestCase):
     def setUp(self):
         self.admin = make_user("admin_user", ADMIN)

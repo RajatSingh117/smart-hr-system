@@ -1,7 +1,9 @@
-{# Usage: {% include "partials/_form_field.html" with label="Email" name="email" type="email" value=values.email error=errors.email required=True %}
-   For selects pass type="select" options=list. For textareas pass type="textarea".
-   When real Django forms arrive you can replace this with {{ form.field }}. #}
-<div class="mb-3">
+{% comment %}
+Usage: include this partial with label, name, type, value, error and required.
+for  selects pass type="select" option=list. for textareas pass type="textarea".
+When real django forms arrive you can replace this with the form.field.
+{% endcomment %}
+  <div class="mb-3">
   <label for="id_{{ name }}" class="form-label">
     {{ label }}{% if required %} <span class="text-danger">*</span>{% endif %}
   </label>
