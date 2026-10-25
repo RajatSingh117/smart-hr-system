@@ -1,0 +1,25 @@
+{% comment %}
+Usage: include this partial with label, name, type, value, error and required.
+for  selects pass type="select" option=list. for textareas pass type="textarea".
+When real django forms arrive you can replace this with the form.field.
+{% endcomment %}
+  <div class="mb-3">
+  <label for="id_{{ name }}" class="form-label">
+    {{ label }}{% if required %} <span class="text-danger">*</span>{% endif %}
+  </label>
+  {% if type == "select" %}
+    <select id="id_{{ name }}" name="{{ name }}" class="form-select {% if error %}is-invalid{% endif %}">
+      <option value="">-- Select --</option>
+      {% for opt in options %}
+        <option value="{{ opt }}" {% if opt == value %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+  {% elif type == "textarea" %}
+    <textarea id="id_{{ name }}" name="{{ name }}" rows="3"
+              class="form-control {% if error %}is-invalid{% endif %}">{{ value|default:"" }}</textarea>
+  {% else %}
+    <input id="id_{{ name }}" name="{{ name }}" type="{{ type|default:'text' }}"
+           value="{{ value|default:'' }}" class="form-control {% if error %}is-invalid{% endif %}">
+  {% endif %}
+  {% if error %}<div class="invalid-feedback d-block">{{ error }}</div>{% endif %}
+</div>
