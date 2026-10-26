@@ -1,0 +1,60 @@
+
+{% extends "dashboards/dashboard_base.html" %}
+
+{% block dashboard_title %}Reports{% endblock %}
+{% block page_heading %}Reports Dashboard{% endblock %}
+
+{% block dashboard_body %}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-4">
+    {% include "partials/_stat_card.html" with title="Total Employees" value=total_employees icon="Users" %}
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    {% include "partials/_stat_card.html" with title="Active Employees" value=active_employees icon="Check" %}
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    {% include "partials/_stat_card.html" with title="Employees on Leave" value=employees_on_leave icon="Calendar" %}
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    {% include "partials/_stat_card.html" with title="Terminated Employees" value=terminated_employees icon="Archive" %}
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    {% include "partials/_stat_card.html" with title="Total Departments" value=total_departments icon="Building" %}
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    {% include "partials/_stat_card.html" with title="Active Departments" value=active_departments icon="Check" %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Employees by Department</div>
+  <div class="card-body">
+    {% if department_summary %}
+      <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Department</th>
+              <th>Status</th>
+              <th>Employee Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for department in department_summary %}
+              <tr>
+                <td>{{ department.name }}</td>
+                <td>
+                  {% if department.is_active %}Active{% else %}Inactive{% endif %}
+                </td>
+                <td>{{ department.employee_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {% include "partials/_empty_state.html" with message="No departments have been added yet." %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
