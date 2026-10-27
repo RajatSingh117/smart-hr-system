@@ -8,11 +8,17 @@ from apps.accounts.models import User
 
 from .models import Attendance
 
-
+def _ensure_own_record(employee,actor):
+    if actor is None or employee.user_id != actor.pk:
+        raise ValidationError(
+            "You can only record your own attendance."
+        )
 @transaction.atomic
-def check_in(employee):
+def check_in(employee,actor):
     """Record one check-in per employee per day."""
+    _ensure_own_record(employee, actor)
     today = timezone.localdate()
+
 
     if not employee.is_active_employee:
         raise ValidationError("Only active employees can check in.")
@@ -43,8 +49,9 @@ def check_in(employee):
 
 
 @transaction.atomic
-def check_out(employee):
+def check_out(employee, actor):
     """Record one check-out after the employee has checked in."""
+    _ensure_own_record(employee, actor)
     today = timezone.localdate()
 
     if not employee.is_active_employee:
@@ -89,13 +96,10 @@ def correct_attendance(
     check_out=None,
     reason="",
 ):
-    """Allow HR/Admin to correct attendance with an audit record."""
-    if actor is None or actor.role not in {
-        User.Role.HR,
-        User.Role.ADMIN,
-    }:
+    """Allow HR  to correct attendance with an audit record."""
+    if actor is None or actor.role!=User.Role.HR:
         raise ValidationError(
-            "Only HR or Admin can correct attendance."
+            "Only HR  can correct attendance."
         )
 
     if not reason or not reason.strip():
