@@ -421,6 +421,7 @@ class LeaveApplicationValidationTests(TestCase):
             employee=self.other_employee,
         )
         self.assertEqual(other_leave.employee, self.other_employee)
+        
     def test_cancelled_request_does_not_block_new_request(self):
         leave = self.create_request()
         change_leave_status(
@@ -443,10 +444,12 @@ class LeaveApplicationValidationTests(TestCase):
         )
         balance.refresh_from_db()
         self.assertEqual(balance.remaining_days, 2)
+
     def test_request_without_balance_for_year_is_rejected(self):
         LeaveBalance.objects.filter(employee=self.employee).delete()
         with self.assertRaises(ValidationError):
             self.create_request()
+
     def test_terminated_employee_cannot_apply(self):
         self.employee.employment_status = Employee.EmploymentStatus.TERMINATED
         self.employee.save(update_fields=["employment_status"])
@@ -458,6 +461,16 @@ class LeaveApplicationValidationTests(TestCase):
         self.leave_type.save(update_fields=["is_active"])
         with self.assertRaises(ValidationError):
             self.create_request()
+
+    def test_application_locks_the_employee_row(self):
+        with patch.object(
+            Employee.objects,
+            "select_for_update",
+            wraps=Employee.objects.select_for_update,
+        ) as lock:
+            self.create_request()
+        lock.assert_called_once()
+    
 class WorkingDayCalculationTests(TestCase):
     def test_monday_to_friday_counts_five_days(self):
         days = calculate_working_days(

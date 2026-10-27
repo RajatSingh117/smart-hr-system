@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, PublicHoliday
 from apps.attendance.models import Attendance
 from apps.accounts.audit import log_audit
+from apps.employees.models import Employee
 
 
 ALLOWED_TRANSITIONS = {
@@ -227,6 +228,9 @@ def create_leave_request(
     end_date,
     reason="",
 ):
+    # Serialize concurrent applications for the same employee, so two
+    # overlapping requests cannot both pass the overlap check.
+    employee = Employee.objects.select_for_update().get(pk=employee.pk)
     """Validate and create a leave application."""
     if employee.employment_status == employee.EmploymentStatus.TERMINATED:
         raise ValidationError(
