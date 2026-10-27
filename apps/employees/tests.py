@@ -78,6 +78,50 @@ class DepartmentModelTests(TestCase):
         dept.refresh_from_db()
         self.assertIsNone(dept.department_head)
 
+    def test_department_clean_accepts_active_head(self):
+        dept = Department(name='Finance Model')
+        emp = Employee.objects.create(
+            employee_id='EMP-ACT-HEAD',
+            full_name='Active Manager',
+            email='active.head@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+        )
+        dept.department_head = emp
+        dept.full_clean()
+
+    def test_department_clean_rejects_on_leave_head(self):
+        dept = Department(name='Finance Model Leave')
+        emp = Employee.objects.create(
+            employee_id='EMP-LV-HEAD',
+            full_name='On Leave Manager',
+            email='leave.head@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+        )
+        dept.department_head = emp
+        with self.assertRaises(ValidationError) as ctx:
+            dept.full_clean()
+        self.assertIn('department_head', ctx.exception.message_dict)
+
+    def test_department_clean_rejects_terminated_head(self):
+        dept = Department(name='Finance Model Term')
+        emp = Employee.objects.create(
+            employee_id='EMP-TRM-HEAD',
+            full_name='Terminated Manager',
+            email='term.head@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+        )
+        dept.department_head = emp
+        with self.assertRaises(ValidationError) as ctx:
+            dept.full_clean()
+        self.assertIn('department_head', ctx.exception.message_dict)
+
+    def test_department_clean_allows_null_head(self):
+        dept = Department(name='Finance Model Null', department_head=None)
+        dept.full_clean()
+
 
 class JobTitleModelTests(TestCase):
     """Unit and relationship tests for the JobTitle model."""
@@ -523,6 +567,122 @@ class DepartmentFormTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         dept = form.save()
         self.assertIsNone(dept.department_head)
+
+    def test_department_form_queryset_only_contains_active_employees(self):
+        emp_active = Employee.objects.create(
+            employee_id='EMP-ACTIVE-Q',
+            full_name='Active Candidate',
+            email='active.cand@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+        )
+        emp_leave = Employee.objects.create(
+            employee_id='EMP-LEAVE-Q',
+            full_name='On Leave Candidate',
+            email='leave.cand@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+        )
+        emp_term = Employee.objects.create(
+            employee_id='EMP-TERM-Q',
+            full_name='Terminated Candidate',
+            email='term.cand@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+        )
+        form = DepartmentForm()
+        qs = form.fields['department_head'].queryset
+        self.assertIn(emp_active, qs)
+        self.assertNotIn(emp_leave, qs)
+        self.assertNotIn(emp_term, qs)
+
+    def test_department_form_rejects_on_leave_head_submission(self):
+        emp_leave = Employee.objects.create(
+            employee_id='EMP-LV-SUB',
+            full_name='Leave Person',
+            email='leave.sub@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+        )
+        data = {
+            'name': 'Operations',
+            'department_head': emp_leave.pk,
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('department_head', form.errors)
+
+    def test_department_form_rejects_terminated_head_submission(self):
+        emp_term = Employee.objects.create(
+            employee_id='EMP-TRM-SUB',
+            full_name='Terminated Person',
+            email='term.sub@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+        )
+        data = {
+            'name': 'Operations',
+            'department_head': emp_term.pk,
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('department_head', form.errors)
+
+    def test_department_form_edit_with_active_head(self):
+        active_head = Employee.objects.create(
+            employee_id='EMP-ACT-ED',
+            full_name='Active Head',
+            email='act.head@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+        )
+        dept = Department.objects.create(name='Research', department_head=active_head)
+        form = DepartmentForm(instance=dept)
+        self.assertIn(active_head, form.fields['department_head'].queryset)
+        data = {
+            'name': 'Research & Innovation',
+            'department_head': active_head.pk,
+            'is_active': True,
+        }
+        form_post = DepartmentForm(data=data, instance=dept)
+        self.assertTrue(form_post.is_valid(), form_post.errors)
+        saved = form_post.save()
+        self.assertEqual(saved.department_head, active_head)
+
+    def test_department_form_edit_with_existing_inactive_head(self):
+        inactive_head = Employee.objects.create(
+            employee_id='EMP-INACT-HEAD',
+            full_name='Formerly Active Head',
+            email='formerly.active@example.com',
+            joining_date=date(2024, 1, 1),
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+        )
+        dept = Department.objects.create(name='Legacy Dept', department_head=inactive_head)
+
+        form = DepartmentForm(instance=dept)
+        self.assertIn(inactive_head, form.fields['department_head'].queryset)
+
+        data = {
+            'name': 'Legacy Dept',
+            'department_head': inactive_head.pk,
+            'is_active': True,
+        }
+        form_post = DepartmentForm(data=data, instance=dept)
+        self.assertFalse(form_post.is_valid())
+        self.assertIn('department_head', form_post.errors)
+        self.assertIn('Only active employees may be selected', form_post.errors['department_head'][0])
+
+        data_clear = {
+            'name': 'Legacy Dept',
+            'department_head': '',
+            'is_active': True,
+        }
+        form_clear = DepartmentForm(data=data_clear, instance=dept)
+        self.assertTrue(form_clear.is_valid(), form_clear.errors)
+        updated = form_clear.save()
+        self.assertIsNone(updated.department_head)
 
 
 class EmployeeViewTests(TestCase):
@@ -1042,6 +1202,62 @@ class DepartmentViewTests(TestCase):
         response = department_delete(request, pk=self.dept.pk)
         self.assertEqual(response.status_code, 403)
 
+    def test_department_create_crafted_post_with_ineligible_head_rejected(self):
+        emp_leave = Employee.objects.create(
+            employee_id='EMP-CRAFT-01',
+            full_name='Crafted Leave',
+            email='crafted.leave@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+        )
+        data = {
+            'name': 'Crafted Dept',
+            'department_head': emp_leave.pk,
+            'is_active': True,
+        }
+        request = self.factory.post('/employees/departments/create/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = department_create(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Department.objects.filter(name='Crafted Dept').exists())
+
+    def test_department_edit_crafted_post_with_ineligible_head_rejected(self):
+        emp_term = Employee.objects.create(
+            employee_id='EMP-CRAFT-02',
+            full_name='Crafted Terminated',
+            email='crafted.term@example.com',
+            joining_date=date(2025, 1, 1),
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+        )
+        data = {
+            'name': self.dept.name,
+            'department_head': emp_term.pk,
+            'is_active': True,
+        }
+        request = self.factory.post(f'/employees/departments/{self.dept.pk}/edit/', data=data)
+        self._prepare_request(request, self.hr_user)
+        response = department_edit(request, pk=self.dept.pk)
+        self.assertEqual(response.status_code, 200)
+        self.dept.refresh_from_db()
+        self.assertNotEqual(self.dept.department_head, emp_term)
+
+    def test_department_delete_blocked_when_on_leave_or_terminated_employee_assigned(self):
+        leave_dept = Department.objects.create(name='Leave Dept')
+        Employee.objects.create(
+            employee_id='EMP-DEP-LV',
+            full_name='Assigned Leave Employee',
+            email='assigned.leave@example.com',
+            joining_date=date(2025, 1, 1),
+            department=leave_dept,
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+        )
+        request = self.factory.post(f'/employees/departments/{leave_dept.pk}/delete/')
+        self._prepare_request(request, self.hr_user)
+        response = department_delete(request, pk=leave_dept.pk)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Department.objects.filter(pk=leave_dept.pk).exists())
+
+
 
 class EmployeeIntegrationAndTemplateTests(TestCase):
     """End-to-end integration and template rendering tests using Django test client."""
@@ -1138,3 +1354,58 @@ class EmployeeIntegrationAndTemplateTests(TestCase):
         self.assertEqual(res_del.status_code, 200)
         self.assertTemplateUsed(res_del, 'employees/department_confirm_delete.html')
         self.assertContains(res_del, 'Deletion Blocked by Referential Integrity')
+        self.assertContains(res_del, 'departments with assigned employees cannot be deleted')
+        self.assertNotContains(res_del, 'departments with active employees cannot be deleted')
+
+    def test_job_title_html_is_escaped_against_xss(self):
+        xss_job = JobTitle.objects.create(title='<script>alert("xss")</script>')
+        Employee.objects.create(
+            employee_id='EMP-XSS-01',
+            full_name='XSS Target',
+            email='xss@example.com',
+            joining_date=date(2025, 1, 1),
+            job_title=xss_job,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+        )
+        self.client.force_login(self.hr)
+        url = reverse('employees:employee_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        # Verify raw script tag is not rendered
+        self.assertNotContains(response, '<script>alert("xss")</script>')
+        # Verify escaped text is rendered instead of executable HTML
+        self.assertContains(response, '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;')
+
+    def test_employee_list_unassigned_job_title_renders_fallback_html(self):
+        Employee.objects.create(
+            employee_id='EMP-NOJOB-01',
+            full_name='No Job Employee',
+            email='nojob@example.com',
+            joining_date=date(2025, 1, 1),
+            job_title=None,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+        )
+        self.client.force_login(self.hr)
+        url = reverse('employees:employee_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<span class="text-muted small">Unassigned</span>')
+
+    def test_department_delete_warning_wording_accurate_for_assigned_employees(self):
+        dept_with_inactive = Department.objects.create(name='Inactive Staff Dept')
+        Employee.objects.create(
+            employee_id='EMP-INACT-DEL',
+            full_name='Terminated Assigned',
+            email='term.del@example.com',
+            joining_date=date(2025, 1, 1),
+            department=dept_with_inactive,
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+        )
+        self.client.force_login(self.hr)
+        dept_del_url = reverse('employees:department_delete', args=[dept_with_inactive.pk])
+        res_del = self.client.get(dept_del_url)
+        self.assertEqual(res_del.status_code, 200)
+        self.assertTemplateUsed(res_del, 'employees/department_confirm_delete.html')
+        self.assertContains(res_del, 'Deletion Blocked by Referential Integrity')
+        self.assertContains(res_del, 'departments with assigned employees cannot be deleted')
+        self.assertNotContains(res_del, 'departments with active employees cannot be deleted')

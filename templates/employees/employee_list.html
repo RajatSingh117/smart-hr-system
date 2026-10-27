@@ -115,7 +115,11 @@
                   {% endif %}
                 </td>
                 <td>
-                  {{ emp.job_title.title|default:"<span class='text-muted small'>Unassigned</span>"|safe }}
+                  {% if emp.job_title %}
+                    {{ emp.job_title.title }}
+                  {% else %}
+                    <span class="text-muted small">Unassigned</span>
+                  {% endif %}
                 </td>
                 <td>
                   {% if emp.employment_status == 'ACTIVE' %}

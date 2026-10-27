@@ -185,7 +185,23 @@ class DepartmentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['department_head'].empty_label = _('Select department head (optional)')
         self.fields['department_head'].required = False
-        self.fields['department_head'].queryset = Employee.objects.all().order_by('full_name')
+
+        active_heads = Employee.objects.filter(
+            employment_status=Employee.EmploymentStatus.ACTIVE
+        )
+        if self.instance and self.instance.pk and self.instance.department_head_id:
+            current_head_qs = Employee.objects.filter(pk=self.instance.department_head_id)
+            self.fields['department_head'].queryset = (active_heads | current_head_qs).order_by('full_name')
+        else:
+            self.fields['department_head'].queryset = active_heads.order_by('full_name')
+
+    def clean_department_head(self):
+        head = self.cleaned_data.get('department_head')
+        if head and head.employment_status != Employee.EmploymentStatus.ACTIVE:
+            raise forms.ValidationError(
+                _('Only active employees may be selected as department head.')
+            )
+        return head
 
     def clean_name(self):
         name = self.cleaned_data.get('name')
