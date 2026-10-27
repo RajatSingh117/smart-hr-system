@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -46,6 +47,18 @@ class Department(AuditedModelMixin):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if self.department_head_id:
+            try:
+                head = self.department_head
+            except Employee.DoesNotExist:
+                head = None
+            if head and head.employment_status != Employee.EmploymentStatus.ACTIVE:
+                raise ValidationError({
+                    'department_head': _('Only active employees may be selected as department head.')
+                })
 
 
 class JobTitle(AuditedModelMixin):
