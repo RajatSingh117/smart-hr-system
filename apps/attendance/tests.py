@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
-
+from django.db import IntegrityError
 from apps.employees.models import Employee
 from apps.attendance.models import Attendance
 from apps.attendance.services import check_in, check_out, correct_attendance , get_monthly_attendance_summary
@@ -15,25 +15,30 @@ from apps.attendance.services import check_in, check_out, correct_attendance , g
 
 class AttendanceCheckInTests(TestCase):
     def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="checkin_user@example.com",
+            password="test-password",
+        )
         self.employee = Employee.objects.create(
             employee_id="EMP001",
             full_name="Test Employee",
             email="test.employee@example.com",
             joining_date=date(2026, 1, 1),
+            user=self.user,
         )
     def test_check_in_creates_attendance(self):
-        attendance = check_in(self.employee)
+        attendance = check_in(self.employee, self.user)
 
         self.assertEqual(attendance.employee, self.employee)
         self.assertEqual(attendance.date, timezone.localdate())
         self.assertIsNotNone(attendance.check_in)
         self.assertEqual(attendance.status, Attendance.Status.PRESENT)
-
     def test_duplicate_check_in_is_rejected(self):
-        check_in(self.employee)
+        check_in(self.employee,self.user)
 
         with self.assertRaises(ValidationError):
-            check_in(self.employee)
+            check_in(self.employee,self.user)
 
         self.assertEqual(
             Attendance.objects.filter(employee=self.employee).count(),
@@ -45,19 +50,19 @@ class AttendanceCheckInTests(TestCase):
         self.employee.save(update_fields=["employment_status"])
 
         with self.assertRaises(ValidationError):
-            check_in(self.employee)
+            check_in(self.employee,self.user)
 
         self.assertFalse(
             Attendance.objects.filter(employee=self.employee).exists()
         )
 
     def test_check_out_after_check_in(self):
-        attendance = check_in(self.employee)
+        attendance = check_in(self.employee,self.user)
 
         later_time = attendance.check_in + timezone.timedelta(seconds=1)
 
         with patch("apps.attendance.services.timezone.now", return_value=later_time):
-            result = check_out(self.employee)
+            result = check_out(self.employee,self.user)
 
         self.assertEqual(result.pk, attendance.pk)
         self.assertIsNotNone(result.check_out)
@@ -65,7 +70,7 @@ class AttendanceCheckInTests(TestCase):
 
     
     def test_duplicate_check_out_is_rejected(self):
-        attendance = check_in(self.employee)
+        attendance = check_in(self.employee,self.user)
 
         later_time = attendance.check_in + timezone.timedelta(seconds=2)
 
@@ -73,10 +78,10 @@ class AttendanceCheckInTests(TestCase):
         "apps.attendance.services.timezone.now",
         return_value=later_time,
     ):
-         check_out(self.employee)
+         check_out(self.employee,self.user)
 
         with self.assertRaises(ValidationError):
-           check_out(self.employee)
+           check_out(self.employee,self.user)
 
         attendance.refresh_from_db()
         self.assertIsNotNone(attendance.check_out)
@@ -84,11 +89,39 @@ class AttendanceCheckInTests(TestCase):
 
     def test_check_out_without_check_in_is_rejected(self):
         with self.assertRaises(ValidationError):
-            check_out(self.employee)
+            check_out(self.employee,self.user)
 
         self.assertFalse(
             Attendance.objects.filter(employee=self.employee).exists()
         )
+    def test_check_in_integrity_error_becomes_validation_error(self):
+        with patch(
+            "apps.attendance.services.Attendance.objects.create",
+            side_effect=IntegrityError,
+        ):
+            with self.assertRaises(ValidationError):
+                check_in(self.employee,self.user)
+    def test_user_cannot_check_in_for_another_employee(self):
+        intruder = get_user_model().objects.create_user(
+            email="intruder@example.com", password="test-password",
+        )
+        with self.assertRaises(ValidationError):
+            check_in(self.employee, intruder)
+        self.assertFalse(
+            Attendance.objects.filter(employee=self.employee).exists()
+        )
+
+    def test_check_in_requires_an_actor(self):
+        with self.assertRaises(ValidationError):
+            check_in(self.employee, None)
+
+    def test_user_cannot_check_out_for_another_employee(self):
+        check_in(self.employee, self.user)
+        intruder = get_user_model().objects.create_user(
+            email="intruder2@example.com", password="test-password",
+        )
+        with self.assertRaises(ValidationError):
+            check_out(self.employee, intruder)
 
 class AttendanceCorrectionTests(TestCase):
     def setUp(self):
@@ -190,6 +223,35 @@ class AttendanceCorrectionTests(TestCase):
         audit_exists,
         "Attendance correction did not create a central audit event.",
     )
+
+    def test_admin_cannot_correct_attendance(self):
+        User = get_user_model()
+        admin_user = User.objects.create_user(
+            email="admin_corrector@example.com",
+            password="test-password",
+            role=User.Role.ADMIN,
+        )
+        with self.assertRaises(ValidationError):
+            correct_attendance(
+                self.attendance.pk, admin_user,
+                status=Attendance.Status.LATE, reason="Admin attempt",
+            )
+
+    def test_correction_audit_event_records_old_and_new_values(self):
+        from apps.accounts.models import AuditEvent
+
+        old_status = self.attendance.status
+        correct_attendance(
+            self.attendance.pk, self.hr_user,
+            status=Attendance.Status.LATE, reason="Late arrival confirmed",
+        )
+        event = AuditEvent.objects.get(
+            actor=self.hr_user,
+            object_id=self.attendance.pk,
+            action="UPDATE",
+        )
+        self.assertEqual(event.changes["status"]["old"], old_status)
+        self.assertEqual(event.changes["status"]["new"], Attendance.Status.LATE)
 class MonthlyAttendanceSummaryTests(TestCase):
     def setUp(self):
         self.employee = Employee.objects.create(
@@ -254,4 +316,47 @@ class MonthlyAttendanceSummaryTests(TestCase):
                     get_monthly_attendance_summary(
                         self.employee, 2026, month
                     )
+    def test_summary_counts_only_the_requested_month(self):
+        employee = Employee.objects.create(
+            employee_id="EMP-SUM-1", full_name="Summary Test",
+            email="sum1@example.com", joining_date=date(2026, 1, 1),
+        )
+        for day, status in [
+            (date(2026, 9, 30), Attendance.Status.PRESENT),
+            (date(2026, 10, 1), Attendance.Status.PRESENT),
+            (date(2026, 10, 31), Attendance.Status.LATE),
+            (date(2026, 11, 1), Attendance.Status.ABSENT),
+        ]:
+            Attendance.objects.create(employee=employee, date=day, status=status)
 
+        summary = get_monthly_attendance_summary(employee, 2026, 10)
+
+        self.assertEqual(summary["total_days"], 2)
+        self.assertEqual(summary[Attendance.Status.PRESENT], 1)
+        self.assertEqual(summary[Attendance.Status.LATE], 1)
+        self.assertEqual(summary[Attendance.Status.ABSENT], 0)
+
+    def test_summary_ignores_other_employees_and_empty_month(self):
+        employee = Employee.objects.create(
+            employee_id="EMP-SUM-2", full_name="Summary Two",
+            email="sum2@example.com", joining_date=date(2026, 1, 1),
+        )
+        other = Employee.objects.create(
+            employee_id="EMP-SUM-3", full_name="Summary Three",
+            email="sum3@example.com", joining_date=date(2026, 1, 1),
+        )
+        Attendance.objects.create(
+            employee=other, date=date(2026, 10, 5),
+            status=Attendance.Status.PRESENT,
+        )
+        summary = get_monthly_attendance_summary(employee, 2026, 10)
+        self.assertEqual(summary["total_days"], 0)
+
+    def test_summary_rejects_invalid_month(self):
+        employee = Employee.objects.create(
+            employee_id="EMP-SUM-4", full_name="Summary Four",
+            email="sum4@example.com", joining_date=date(2026, 1, 1),
+        )
+        with self.assertRaises(ValidationError):
+            get_monthly_attendance_summary(employee, 2026, 13)
+    

@@ -4,14 +4,14 @@ from django.utils import timezone
 from datetime import date, timedelta
 from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, PublicHoliday
 from apps.attendance.models import Attendance
+from apps.accounts.audit import log_audit
+from apps.employees.models import Employee
+
 
 ALLOWED_TRANSITIONS = {
     LeaveRequest.Status.PENDING: {
         LeaveRequest.Status.APPROVED,
         LeaveRequest.Status.REJECTED,
-        LeaveRequest.Status.CANCELLED,
-    },
-    LeaveRequest.Status.APPROVED: {
         LeaveRequest.Status.CANCELLED,
     },
 }
@@ -228,8 +228,17 @@ def create_leave_request(
     end_date,
     reason="",
 ):
+    # Serialize concurrent applications for the same employee, so two
+    # overlapping requests cannot both pass the overlap check.
+    employee = Employee.objects.select_for_update().get(pk=employee.pk)
     """Validate and create a leave application."""
+    if employee.employment_status == employee.EmploymentStatus.TERMINATED:
+        raise ValidationError(
+            "A terminated employee cannot apply for leave."
+        )
 
+    if not leave_type.is_active:
+        raise ValidationError("This leave type is not active.")
     if start_date > end_date:
         raise ValidationError(
             "Leave end date cannot be before the start date."
@@ -248,6 +257,28 @@ def create_leave_request(
             "request overlapping these dates."
         )
 
+    yearly_days = calculate_working_days_by_year(start_date, end_date)
+
+    for year, days in yearly_days.items():
+        if days == 0:
+            continue
+
+        balance = LeaveBalance.objects.filter(
+            employee=employee,
+            leave_type=leave_type,
+            year=year,
+        ).first()
+
+        if balance is None:
+            raise ValidationError(
+                f"No leave balance is configured for {year}."
+            )
+
+        if balance.remaining_days < days:
+            raise ValidationError(
+                f"Insufficient leave balance for {year}."
+            )
+
     return LeaveRequest.objects.create(
         employee=employee,
         leave_type=leave_type,
@@ -255,7 +286,6 @@ def create_leave_request(
         end_date=end_date,
         reason=reason,
     )
-
 
 def deduct_leave_balance(leave_request):
     """Deduct leave only when every year's balance is sufficient."""
@@ -321,7 +351,8 @@ def change_leave_status(
             f"to {new_status}."
         )
 
-    # Only HR/Admin can approve or reject leave requests.
+    # Only HR/Admin can approve or reject, never their own request,
+    # and remarks are required.
     if new_status in {
         LeaveRequest.Status.APPROVED,
         LeaveRequest.Status.REJECTED,
@@ -331,52 +362,35 @@ def change_leave_status(
                 "Only HR or Admin can approve or reject leave."
             )
 
-        # Prevent users from approving or rejecting their own leave.
         if leave_request.employee.user_id == changed_by.pk:
             raise ValidationError(
                 "You cannot approve or reject your own leave request."
             )
 
-    if (
-    new_status in {
-        LeaveRequest.Status.APPROVED,
-        LeaveRequest.Status.REJECTED,
-    }
-    and not remarks.strip()
-    ):
-        raise ValidationError(
-        "Remarks are required to approve or reject leave."
-        )
+        if not remarks.strip():
+            raise ValidationError(
+                "Remarks are required to approve or reject leave."
+            )
 
+    # The owner or HR/Admin can cancel a Pending request.
+    if new_status == LeaveRequest.Status.CANCELLED:
+        is_owner = (
+            changed_by is not None
+            and leave_request.employee.user_id == changed_by.pk
+        )
+        if changed_by is None or not (is_owner or changed_by.is_hr):
+            raise ValidationError(
+                "Only the employee who owns the request, "
+                "or HR/Admin, can cancel it."
+            )
+
+    # Re-check the balance at approval and deduct it.
     if new_status == LeaveRequest.Status.APPROVED:
         if not deduct_leave_balance(leave_request):
             new_status = LeaveRequest.Status.REJECTED
             remarks = (
                 f"{remarks} Insufficient leave balance."
             ).strip()
-    if (
-    old_status == LeaveRequest.Status.APPROVED
-    and new_status == LeaveRequest.Status.CANCELLED
- ):
-        unused_days = get_unused_leave_days(leave_request)
-
-        if unused_days is None:
-            leave_request.restoration_status = (
-            LeaveRequest.RestorationStatus.HR_REVIEW
-           )
-            leave_request.restoration_review_reason = (
-            "Attendance records are missing or unclear. "
-            "HR must review the leave balance restoration."
-             )
-            leave_request.save(
-            update_fields=[
-                "restoration_status",
-                "restoration_review_reason",
-                "updated_at",
-            ]
-            )
-        else:
-            restore_leave_balance(leave_request, unused_days)
 
     leave_request.status = new_status
     update_fields = ["status", "updated_at"]
@@ -398,6 +412,21 @@ def change_leave_status(
         new_status=new_status,
         changed_by=changed_by,
         remarks=remarks,
+    )
+
+    audit_actions = {
+        LeaveRequest.Status.APPROVED: "APPROVE",
+        LeaveRequest.Status.REJECTED: "REJECT",
+        LeaveRequest.Status.CANCELLED: "UPDATE",
+    }
+    log_audit(
+        changed_by,
+        audit_actions[new_status],
+        leave_request,
+        changes={
+            "status": {"old": old_status, "new": new_status},
+            "remarks": {"old": None, "new": remarks},
+        },
     )
 
     return leave_request
