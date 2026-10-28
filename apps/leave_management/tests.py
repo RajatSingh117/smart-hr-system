@@ -9,6 +9,19 @@ from apps.attendance.models import Attendance
 from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
 from .services import  (calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request,restore_leave_balance,)
 
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+from django.db import(
+    close_old_connections,
+      connection,
+      connections,
+      transaction,
+)
+from django.test import TransactionTestCase
+
+
 class LeaveStatusTransitionTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -688,3 +701,235 @@ class LeaveBalanceApprovalTests(TestCase):
                 LeaveRequest.Status.REJECTED,
                 changed_by=self.hr_user,
             )
+class LeaveRequestConcurrencyTests(TransactionTestCase):
+    """
+    Verify that PostgreSQL serializes overlapping leave applications
+    for the same employee.
+    """
+
+    def setUp(self):
+        if connection.vendor != "postgresql":
+            self.skipTest(
+                "This integration test requires PostgreSQL."
+            )
+
+        self.employee = Employee.objects.create(
+            employee_id="EMP-CONCURRENCY-001",
+            email="concurrency_test@example.com",
+            full_name="Concurrency Test Employee",
+            joining_date=date(2025, 1, 1),
+        )
+
+        self.leave_type = LeaveType.objects.create(
+            name="Concurrency Test Leave",
+        )
+
+        LeaveBalance.objects.create(
+            employee=self.employee,
+            leave_type=self.leave_type,
+            year=2026,
+            remaining_days=20,
+        )
+
+    def test_overlapping_requests_are_serialized(self):
+        first_created = threading.Event()
+        release_first = threading.Event()
+        second_started = threading.Event()
+
+        employee_id = self.employee.pk
+        leave_type_id = self.leave_type.pk
+
+        first_app = "leave_concurrency_first"
+        second_app = "leave_concurrency_second"
+
+        outcomes = {}
+
+        def set_application_name(app_name):
+            with connections["default"].cursor() as cursor:
+                cursor.execute(
+                    "SELECT set_config('application_name', %s, false)",
+                    [app_name],
+                )
+
+        def first_request():
+            close_old_connections()
+
+            try:
+                if connections["default"].vendor != "postgresql":
+                    raise AssertionError(
+                        "First worker is not using PostgreSQL."
+                    )
+
+                set_application_name(first_app)
+
+                employee = Employee.objects.get(pk=employee_id)
+                leave_type = LeaveType.objects.get(pk=leave_type_id)
+
+                with transaction.atomic():
+                    create_leave_request(
+                        employee=employee,
+                        leave_type=leave_type,
+                        start_date=date(2026, 11, 10),
+                        end_date=date(2026, 11, 12),
+                        reason="First concurrent request",
+                    )
+
+                    # The service has returned, but the outer transaction
+                    # still holds the employee-row lock.
+                    first_created.set()
+
+                    if not release_first.wait(timeout=20):
+                        raise TimeoutError(
+                            "First transaction was not released."
+                        )
+
+                outcomes["first"] = "success"
+
+            except Exception as exc:
+                outcomes["first_error"] = repr(exc)
+
+                # Unblock the second worker if the first worker fails.
+                first_created.set()
+
+            finally:
+                close_old_connections()
+
+        def second_request():
+            close_old_connections()
+
+            try:
+                if connections["default"].vendor != "postgresql":
+                    raise AssertionError(
+                        "Second worker is not using PostgreSQL."
+                    )
+
+                set_application_name(second_app)
+
+                if not first_created.wait(timeout=10):
+                    raise TimeoutError(
+                        "First request did not reach the synchronization point."
+                    )
+
+                employee = Employee.objects.get(pk=employee_id)
+                leave_type = LeaveType.objects.get(pk=leave_type_id)
+
+                # Signal immediately before the service attempts the lock.
+                second_started.set()
+
+                create_leave_request(
+                    employee=employee,
+                    leave_type=leave_type,
+                    start_date=date(2026, 11, 11),
+                    end_date=date(2026, 11, 13),
+                    reason="Second concurrent request",
+                )
+
+                outcomes["second"] = "success"
+
+            except ValidationError:
+                outcomes["second"] = "rejected"
+
+            except Exception as exc:
+                outcomes["second_error"] = repr(exc)
+
+            finally:
+                close_old_connections()
+
+        def second_is_blocked_by_first():
+            deadline = time.monotonic() + 15
+
+            while time.monotonic() < deadline:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM pg_stat_activity AS blocked
+                            CROSS JOIN LATERAL
+                                unnest(
+                                    pg_blocking_pids(blocked.pid)
+                                ) AS blocker(pid)
+                            JOIN pg_stat_activity AS blocking
+                                ON blocking.pid = blocker.pid
+                            WHERE blocked.application_name = %s
+                              AND blocking.application_name = %s
+                              AND blocked.wait_event_type = 'Lock'
+                        )
+                        """,
+                        [second_app, first_app],
+                    )
+
+                    if cursor.fetchone()[0]:
+                        return True
+
+                time.sleep(0.05)
+
+            return False
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first_future = executor.submit(first_request)
+            second_future = None
+
+            try:
+                self.assertTrue(
+                    first_created.wait(timeout=10),
+                    "First request did not reach the synchronization point.",
+                )
+
+                # Do not start the second worker if the first already failed.
+                self.assertNotIn(
+                    "first_error",
+                    outcomes,
+                    f"First worker failed: {outcomes.get('first_error')}",
+                )
+
+                second_future = executor.submit(second_request)
+
+                self.assertTrue(
+                    second_started.wait(timeout=10),
+                    "Second request did not start.",
+                )
+
+                self.assertTrue(
+                    second_is_blocked_by_first(),
+                    (
+                        "PostgreSQL did not report the second transaction "
+                        "waiting on a lock held by the first."
+                    ),
+                )
+
+            finally:
+                # Always allow the first transaction to finish.
+                release_first.set()
+
+            first_future.result(timeout=25)
+
+            if second_future is not None:
+                second_future.result(timeout=25)
+
+        self.assertNotIn(
+            "first_error",
+            outcomes,
+            f"First worker failed: {outcomes.get('first_error')}",
+        )
+
+        self.assertNotIn(
+            "second_error",
+            outcomes,
+            f"Second worker failed: {outcomes.get('second_error')}",
+        )
+
+        self.assertEqual(outcomes.get("first"), "success")
+        self.assertEqual(outcomes.get("second"), "rejected")
+
+        blocking_requests = LeaveRequest.objects.filter(
+            employee_id=employee_id,
+            status__in=[
+                LeaveRequest.Status.PENDING,
+                LeaveRequest.Status.APPROVED,
+            ],
+            start_date__lte=date(2026, 11, 13),
+            end_date__gte=date(2026, 11, 10),
+        )
+
+        self.assertEqual(blocking_requests.count(), 1)
