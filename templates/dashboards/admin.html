@@ -89,9 +89,9 @@
                         <a href="{% url 'admin:index' %}" class="btn btn-outline-primary">
                             <i class="bi bi-gear me-2"></i> Django Admin
                         </a>
-                        <button class="btn btn-outline-secondary" disabled>
-                            <i class="bi bi-plus-circle me-2"></i> Add Employee (M3)
-                        </button>
+                        <a href="{% url 'employees:employee_create' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-plus-circle me-2"></i> Add Employee
+                        </a>
                         <button class="btn btn-outline-secondary" disabled>
                             <i class="bi bi-file-earmark-text me-2"></i> View Audit Logs (M2-W2)
                         </button>
