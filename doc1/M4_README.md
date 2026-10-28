@@ -123,23 +123,45 @@ All were generated with `makemigrations`, and `makemigrations --check` reports n
 
 ## Tests
 
-```
+Run the attendance and leave-management tests:
+
+```bash
 python manage.py test apps.attendance apps.leave_management
-python manage.py test
 ```
 
-| Area | Tests | Covers |
-|---|---|---|
-| Attendance | 23 | Check-in and check-out success and failure, duplicate prevention, inactive employees, own-user-only rules, HR-only correction, the audit event with old and new values, monthly summary and its boundaries |
-| Leave | 41 | Transitions and terminal states, role and ownership checks, history, application validation and overlap, balance checks at submission and approval, cross-year balances, working-day calculation, audit events |
+Run the full project test suite:
 
-Latest run: 64 tests for these two apps and 143 for the project, all passing. `python manage.py check` reports no issues.
+```bash
+python manage.py test --verbosity=2
+```
+
+Run the PostgreSQL concurrency integration test separately:
+
+```bash
+python manage.py test apps.leave_management.tests.LeaveRequestConcurrencyTests --verbosity=2
+```
+
+The concurrency integration test requires PostgreSQL. It verifies that concurrent overlapping leave applications for the same employee are serialized using an employee-row lock, and that the second overlapping request is rejected after the first transaction commits.
+
+| Area              |                    Tests | Covers                                                                                                                                                                                                                    |
+| ----------------- | -----------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Attendance        |                       23 | Check-in and check-out success and failure, duplicate prevention, inactive employees, own-user-only rules, HR-only correction, audit events with old and new values, monthly summary and its boundaries.                  |
+| Leave management          | 43 discovered | Status transitions and terminal states, role and ownership checks, history, application validation and overlap, balance checks at submission and approval, cross-year balances, working-day calculation and audit events. |
+| PostgreSQL concurrency |   Included in the 43 leave tests | PostgreSQL row-lock behavior when two overlapping leave requests are submitted concurrently for the same employee.                                                                                                        |
+
+**Latest verification:**
+
+* Full project test suite: 210 tests discovered, 209 passed and 1 skipped when run using the non-PostgreSQL configuration.
+* PostgreSQL concurrency integration test: 1 passed, 0 skipped.
+* `python manage.py makemigrations --check`: no changes detected.
+* Django system checks: no issues reported.
+
 
 ---
 
 ## Known limits
 
-- The tests run on SQLite, which ignores row locks. The code uses `select_for_update` inside transactions, so concurrent requests should be verified on PostgreSQL.
+-  **Database concurrency:** The PostgreSQL integration test verifies that concurrent overlapping leave requests for the same employee are serialized using `select_for_update()` inside a transaction. SQLite does not provide equivalent row-lock behavior, so the PostgreSQL integration test must be run against PostgreSQL to verify this scenario.
 - Changes made in Django admin skip the service rules. Use admin for viewing and test data only.
 - The monthly summary counts stored records only.
 
