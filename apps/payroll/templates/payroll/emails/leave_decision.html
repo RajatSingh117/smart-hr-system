@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Leave Request Update</title>
+</head>
+<body>
+    <h2>Hello {{ employee_name }},</h2>
+
+    <p>Your leave request has been reviewed.</p>
+
+    <p><strong>Leave Status:</strong> {{ status }}</p>
+
+    <p><strong>Leave Dates:</strong>
+        {{ start_date }} to {{ end_date }}
+    </p>
+
+    <p><strong>Remarks:</strong> {{ remarks|default:"No additional remarks" }}</p>
+
+    <p>Please contact HR if you have any questions.</p>
+
+    <p>Regards,<br>
+    HR Department</p>
+</body>
+</html>
