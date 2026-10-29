@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from unittest.mock import patch
+
+from . import stubs
 
 User = get_user_model()
 
@@ -24,12 +27,16 @@ PAGES = [
     "reports:preview_attendance_correct",
     "reports:preview_leave_list",
     "reports:preview_leave_apply",
+    "reports:preview_payroll_list",
+    "reports:preview_my_payslips",
+    "reports:preview_notification_list",
 ]
 
 PAGES_WITH_ID = [
     "reports:preview_employee_detail",
     "reports:preview_employee_edit",
     "reports:preview_leave_review",
+    "reports:preview_payslip_detail",
 ]
 
 
@@ -38,6 +45,10 @@ def url_for(name):
 
 
 @override_settings(ROOT_URLCONF="apps.reports.test_urls")
+@patch("apps.reports.real_data.get_leaves", new=lambda: stubs.LEAVES)
+@patch("apps.reports.real_data.get_attendance", new=lambda: stubs.ATTENDANCE)
+@patch("apps.reports.real_data.get_departments", new=lambda: stubs.DEPARTMENTS)
+@patch("apps.reports.real_data.get_employees", new=lambda: stubs.EMPLOYEES)
 class PreviewPageTests(TestCase):
     def setUp(self):
         self.user = make_user("previewadmin", "admin")
@@ -83,3 +94,8 @@ class PreviewPageTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.post(reverse("reports:preview_attendance_check"))
         self.assertRedirects(response, reverse("reports:preview_attendance_list"))
+
+    def test_notification_unread_filter(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("reports:preview_notification_list"), {"status":"Unread"})
+        self.assertEqual(response.context["page_obj"].paginator.count, 2)

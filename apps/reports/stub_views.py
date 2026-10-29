@@ -91,3 +91,28 @@ class LeaveReviewPreview(StubObjectView):
     template_name = "leave/leave_review.html"
     items = stubs.LEAVES
     context_name = "leave"
+
+class PayrollListPreview(StubListView):
+    template_name = "payroll/payroll_list.html"
+    items = stubs.PAYROLL_RUNS
+    search_fields = ("period",)
+    context_name = "runs"
+
+
+class MyPayslipsPreview(StubListView):
+    template_name = "payroll/my_payslips.html"
+    items = stubs.PAYSLIPS
+    search_fields = ("period",)
+    context_name = "payslips"
+
+
+class PayslipDetailPreview(StubObjectView):
+    template_name = "payroll/payslip_detail.html"
+    items = stubs.PAYSLIPS
+    context_name = "payslip"
+
+class NotificationListPreview(StubListView):
+    template_name = "notifications/notification_list.html"
+    items = stubs.NOTIFICATIONS
+    search_fields = ("title", "message")
+    context_name = "notifications"

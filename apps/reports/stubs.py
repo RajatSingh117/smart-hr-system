@@ -31,6 +31,23 @@ LEAVES = [
     {"id": 2, "employee": "Rohan Gupta", "leave_type": "Sick", "start_date": "2026-10-18", "end_date": "2026-10-20", "reason": "Fever", "status": "Approved"},
     {"id": 3, "employee": "Neha Singh", "leave_type": "Casual", "start_date": "2026-10-10", "end_date": "2026-10-10", "reason": "Personal", "status": "Rejected"},
 ]
+PAYROLL_RUNS = [
+    {"id": 1, "period": "October 2026", "employees": 29, "gross": "₹12,40,000", "deductions": "₹1,10,000", "net": "₹11,30,000", "status": "Draft"},
+    {"id": 2, "period": "September 2026", "employees": 28, "gross": "₹12,10,000", "deductions": "₹1,05,000", "net": "₹11,05,000", "status": "Paid"},
+    {"id": 3, "period": "August 2026", "employees": 28, "gross": "₹12,10,000", "deductions": "₹1,05,000", "net": "₹11,05,000", "status": "Paid"},
+]
+
+PAYSLIPS = [
+    {"id": 1, "employee": "Aarav Sharma", "period": "October 2026", "basic": "₹40,000", "allowances": "₹10,000", "deductions": "₹5,000", "net": "₹45,000", "status": "Pending"},
+    {"id": 2, "employee": "Aarav Sharma", "period": "September 2026", "basic": "₹40,000", "allowances": "₹10,000", "deductions": "₹5,000", "net": "₹45,000", "status": "Paid"},
+    {"id": 3, "employee": "Aarav Sharma", "period": "August 2026", "basic": "₹40,000", "allowances": "₹10,000", "deductions": "₹5,000", "net": "₹45,000", "status": "Paid"},
+]
+NOTIFICATIONS = [
+    {"id": 1, "title": "Leave approved", "message": "Your casual leave for 25-26 Oct was approved.", "time": "2 hours ago", "status": "Unread"},
+    {"id": 2, "title": "Payslip ready", "message": "Your October 2026 payslip is available.", "time": "Yesterday", "status": "Unread"},
+    {"id": 3, "title": "Attendance corrected", "message": "HR corrected your attendance for 20 Oct.", "time": "2 days ago", "status": "Read"},
+    {"id": 4, "title": "New holiday added", "message": "Diwali has been added to the holiday list.", "time": "4 days ago", "status": "Read"},
+]
 
 
 def filter_items(items, q="", status="", fields=("name",)):
