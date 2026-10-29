@@ -179,8 +179,16 @@ urlpatterns = [
         "accounts/",
         include("apps.accounts.urls", namespace="accounts"),
     ),
+    path(
+        "employees/",
+        include("apps.employees.urls", namespace="employees"),
+    ),
     path("admin-dashboard/", admin_dashboard, name="admin-dashboard"),
     path("hr-dashboard/", hr_dashboard, name="hr-dashboard"),
     path("my-dashboard/", my_dashboard, name="my-dashboard"),
+    path(
+        "reports/",
+        include("apps.reports.urls", namespace="reports"),
+    ),
     path("", lambda request: redirect("accounts:login")),
 ]

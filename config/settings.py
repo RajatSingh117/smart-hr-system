@@ -46,7 +46,7 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.employees',
     'apps.attendance',
-    'apps.leave_management',
+    "apps.leave_management.apps.LeaveManagementConfig",
     'apps.payroll',
     'apps.reports',
 ]
