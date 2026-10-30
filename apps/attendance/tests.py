@@ -6,11 +6,11 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from apps.employees.models import Employee
 from apps.attendance.models import Attendance
 from apps.attendance.services import check_in, check_out, correct_attendance , get_monthly_attendance_summary
-
+from apps.attendance.events import attendance_corrected
 
 
 class AttendanceCheckInTests(TestCase):
@@ -68,7 +68,7 @@ class AttendanceCheckInTests(TestCase):
         self.assertIsNotNone(result.check_out)
         self.assertGreater(result.check_out, result.check_in)
 
-    
+
     def test_duplicate_check_out_is_rejected(self):
         attendance = check_in(self.employee,self.user)
 
@@ -252,6 +252,84 @@ class AttendanceCorrectionTests(TestCase):
         )
         self.assertEqual(event.changes["status"]["old"], old_status)
         self.assertEqual(event.changes["status"]["new"], Attendance.Status.LATE)
+    def test_correction_emits_attendance_corrected_event(self):
+        received = []
+
+        def receiver(sender, **kwargs):
+            received.append(kwargs)
+
+        attendance_corrected.connect(receiver)
+        self.addCleanup(attendance_corrected.disconnect, receiver)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            correct_attendance(
+                self.attendance.pk, self.hr_user,
+                status=Attendance.Status.LATE, reason="Late arrival confirmed",
+            )
+
+        self.assertEqual(len(received), 1)
+        event = received[0]
+        self.assertEqual(event["attendance_id"], self.attendance.pk)
+        self.assertEqual(event["employee_id"], self.employee.pk)
+        self.assertEqual(event["corrected_by_id"], self.hr_user.pk)
+        self.assertEqual(
+            event["changes"]["status"], {"old": "PRESENT", "new": "LATE"}
+        )
+
+    def test_failed_correction_emits_no_event(self):
+        received = []
+
+        def receiver(sender, **kwargs):
+            received.append(kwargs)
+
+        attendance_corrected.connect(receiver)
+        self.addCleanup(attendance_corrected.disconnect, receiver)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            with self.assertRaises(ValidationError):
+                correct_attendance(
+                    self.attendance.pk, self.regular_user,
+                    status=Attendance.Status.LATE, reason="Not allowed",
+                )
+
+        self.assertEqual(received, [])
+    def test_event_not_dispatched_when_transaction_rolls_back(self):
+        received = []
+
+        def receiver(sender, **kwargs):
+            received.append(kwargs)
+
+        attendance_corrected.connect(receiver)
+        self.addCleanup(attendance_corrected.disconnect, receiver)
+
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            with self.assertRaises(RuntimeError):
+                with transaction.atomic():
+                    correct_attendance(
+                        self.attendance.pk, self.hr_user,
+                        status=Attendance.Status.LATE, reason="Late arrival",
+                    )
+                    raise RuntimeError("force rollback")
+
+        self.assertEqual(callbacks, [])
+        self.assertEqual(received, [])
+        self.attendance.refresh_from_db()
+        self.assertEqual(self.attendance.status, Attendance.Status.PRESENT)
+    def test_failing_receiver_does_not_break_correction(self):
+        def bad_receiver(sender, **kwargs):
+            raise RuntimeError("email service down")
+
+        attendance_corrected.connect(bad_receiver)
+        self.addCleanup(attendance_corrected.disconnect, bad_receiver)
+
+        with self.assertLogs("apps.attendance.events", level="ERROR"):
+            with self.captureOnCommitCallbacks(execute=True):
+                result = correct_attendance(
+                    self.attendance.pk, self.hr_user,
+                    status=Attendance.Status.LATE, reason="Late arrival",
+                )
+
+        self.assertEqual(result.status, Attendance.Status.LATE)
 class MonthlyAttendanceSummaryTests(TestCase):
     def setUp(self):
         self.employee = Employee.objects.create(
@@ -359,4 +437,4 @@ class MonthlyAttendanceSummaryTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             get_monthly_attendance_summary(employee, 2026, 13)
-    
+
