@@ -4,8 +4,10 @@ from django.db import models
 from django.core.validators import MinValueValidator
 from django.db.models import Q
 
+from apps.accounts.mixins import AuditedModelMixin
 
-class SalaryComponent(models.Model):
+
+class SalaryComponent(AuditedModelMixin):
     class ComponentType(models.TextChoices):
         BASIC = "BASIC", "Basic Salary"
         ALLOWANCE = "ALLOWANCE", "Allowance"
@@ -32,7 +34,7 @@ class SalaryComponent(models.Model):
         return f"{self.name} ({self.get_component_type_display()})"
 
 
-class PayrollPeriod(models.Model):
+class PayrollPeriod(AuditedModelMixin):
     name = models.CharField(max_length=100, unique=True)
     start_date = models.DateField()
     end_date = models.DateField()
@@ -52,7 +54,7 @@ class PayrollPeriod(models.Model):
         return self.name
 
 
-class PayrollRecord(models.Model):
+class PayrollRecord(AuditedModelMixin):
     employee = models.ForeignKey(
         "employees.Employee",
         on_delete=models.PROTECT,
@@ -116,7 +118,7 @@ class PayrollRecord(models.Model):
         return f"{self.employee} - {self.payroll_period}"
 
 
-class Payslip(models.Model):
+class Payslip(AuditedModelMixin):
     class Status(models.TextChoices):
         GENERATED = "GENERATED", "Generated"
         FAILED = "FAILED", "Failed"
@@ -138,7 +140,7 @@ class Payslip(models.Model):
         return self.payslip_number
 
 
-class NotificationLog(models.Model):
+class NotificationLog(AuditedModelMixin):
     class NotificationType(models.TextChoices):
         LEAVE_DECISION = "LEAVE_DECISION", "Leave Decision"
         ATTENDANCE_UPDATE = "ATTENDANCE_UPDATE", "Attendance Update"
