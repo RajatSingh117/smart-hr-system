@@ -80,8 +80,13 @@ class CanAccessPayroll(permissions.BasePermission):
             return True
 
         # Employee can only access their own payroll
+        # Check various relationships: obj.employee, obj.employee.user, obj.user, obj.payroll_record.employee.user
         if hasattr(obj, 'employee'):
+            # PayrollRecord has employee field
             return obj.employee.user == request.user
+        if hasattr(obj, 'payroll_record'):
+            # Payslip has payroll_record.employee.user
+            return obj.payroll_record.employee.user == request.user
         if hasattr(obj, 'user'):
             return obj.user == request.user
         return False
