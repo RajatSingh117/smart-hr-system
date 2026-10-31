@@ -40,5 +40,8 @@ urlpatterns = [
 
     # Notifications
     path("preview/notifications/", stub_views.NotificationListPreview.as_view(), name="preview_notification_list"),
+
+    # Reports and Exports
+    path("exports/", SimplePreview.as_view(template_name="reports/exports.html"), name="exports"),
 ]
 
