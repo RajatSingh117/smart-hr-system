@@ -140,7 +140,8 @@ def employee_list(request):
         status_param = request.GET.get('status', '').strip()
 
     if status_param:
-        employees = employees.filter(employment_status__iexact=status_param)
+        status_param = status_param.upper()
+        employees = employees.filter(employment_status=status_param)
 
     # Pagination: 10 per page
     paginator = Paginator(employees, 10)
@@ -454,7 +455,7 @@ def department_delete(request, pk):
 
     context = {
         'department': department,
-        'has_assigned_employees': department.employee_count > 0,
+        'has_assigned_employees': (department.employee_count > 0 or department.employees.exists()),
         'menu_items': menu_items,
     }
     return render(request, 'employees/department_confirm_delete.html', context)

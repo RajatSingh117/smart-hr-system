@@ -1,37 +1,143 @@
 {% extends "dashboards/dashboard_base.html" %}
-{% block dashboard_title %}{{ employee.name }}{% endblock %}
-{% block page_heading %}{{ employee.name }}{% endblock %}
+{% load static %}
+
+{% block dashboard_title %}{{ employee.full_name }} - Employee Profile{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <span class="text-muted small">Employee Profile</span>
+    <div class="h3 mb-0">{{ employee.full_name }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if is_admin_or_hr %}
+      <a href="{% url 'employees:employee_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Directory
+      </a>
+      <a href="{% url 'employees:employee_edit' employee.pk %}" class="btn btn-primary">
+        <i class="bi bi-pencil me-1"></i> Edit Employee
+      </a>
+    {% else %}
+      <a href="{% url 'accounts:dashboard_redirect' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-house me-1"></i> Dashboard
+      </a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
-<div class="card mb-3">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-start mb-3">
-      <div>
-        <div class="text-muted">{{ employee.employee_id }} · {{ employee.job_title }}</div>
-        <div class="mt-1">{% include "partials/_status_badge.html" with status=employee.status %}</div>
+<div class="row g-4">
+  <!-- Left column: Profile overview & Completeness -->
+  <div class="col-12 col-lg-4">
+    <div class="card border-0 shadow-sm text-center p-4 mb-4">
+      <div class="avatar-circle mx-auto mb-3 bg-primary text-white d-flex align-items-center justify-content-center rounded-circle"
+           style="width: 80px; height: 80px; font-size: 2rem; font-weight: bold;">
+        {{ employee.full_name|slice:":1"|upper }}
       </div>
-      <a href="{% url 'reports:preview_employee_edit' employee.id %}" class="btn btn-outline-primary btn-sm">Edit</a>
+      <h4 class="mb-1 fw-bold">{{ employee.full_name }}</h4>
+      <p class="text-muted mb-2"><code>{{ employee.employee_id }}</code></p>
+      <div class="mb-3">
+        {% if employee.employment_status == 'ACTIVE' %}
+          <span class="badge bg-success fs-6"><i class="bi bi-check-circle me-1"></i>Active</span>
+        {% elif employee.employment_status == 'ON_LEAVE' %}
+          <span class="badge bg-warning text-dark fs-6"><i class="bi bi-clock-history me-1"></i>On Leave</span>
+        {% elif employee.employment_status == 'TERMINATED' %}
+          <span class="badge bg-danger fs-6"><i class="bi bi-x-circle me-1"></i>Terminated</span>
+        {% else %}
+          <span class="badge bg-secondary fs-6">{{ employee.get_employment_status_display }}</span>
+        {% endif %}
+      </div>
+
+      <hr class="my-3">
+
+      <!-- Profile Completeness Widget -->
+      <div class="text-start">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small fw-semibold text-muted">Profile Completeness</span>
+          <span class="small fw-bold {% if profile_completeness == 100 %}text-success{% elif profile_completeness >= 60 %}text-primary{% else %}text-warning{% endif %}">
+            {{ profile_completeness }}%
+          </span>
+        </div>
+        <div class="progress" style="height: 10px;" role="progressbar" aria-valuenow="{{ profile_completeness }}" aria-valuemin="0" aria-valuemax="100">
+          <div
+            class="progress-bar {% if profile_completeness == 100 %}bg-success{% elif profile_completeness >= 60 %}bg-primary{% else %}bg-warning{% endif %}"
+            style="width: {{ profile_completeness }}%;">
+          </div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">
+          {% if profile_completeness == 100 %}
+            <i class="bi bi-check2-all text-success me-1"></i>All 10 profile dimensions completed.
+          {% else %}
+            <i class="bi bi-info-circle text-primary me-1"></i>Complete missing contact or job details to reach 100%.
+          {% endif %}
+        </p>
+      </div>
     </div>
-    <dl class="row mb-0">
-      <dt class="col-sm-3">Email</dt><dd class="col-sm-9">{{ employee.email }}</dd>
-      <dt class="col-sm-3">Phone</dt><dd class="col-sm-9">{{ employee.phone }}</dd>
-      <dt class="col-sm-3">Department</dt><dd class="col-sm-9">{{ employee.department }}</dd>
-      <dt class="col-sm-3">Joining date</dt><dd class="col-sm-9">{{ employee.joining_date }}</dd>
-    </dl>
+  </div>
+
+  <!-- Right column: Detailed Information -->
+  <div class="col-12 col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 py-3">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-person-lines-fill me-2 text-primary"></i>Employment & Contact Details</h5>
+      </div>
+      <div class="card-body p-4 pt-0">
+        <div class="row g-3">
+          <div class="col-12 col-sm-6">
+            <span class="small text-muted fw-semibold d-block">Department</span>
+            <span class="fs-6 fw-medium">{{ employee.department.name|default:"Not assigned" }}</span>
+          </div>
+
+          <div class="col-12 col-sm-6">
+            <span class="small text-muted fw-semibold d-block">Job Title</span>
+            <span class="fs-6 fw-medium">{{ employee.job_title.title|default:"Not assigned" }}</span>
+          </div>
+
+          <div class="col-12 col-sm-6">
+            <span class="small text-muted fw-semibold d-block">Joining Date</span>
+            <span class="fs-6 fw-medium">{{ employee.joining_date|date:"F d, Y" }}</span>
+          </div>
+
+          <div class="col-12 col-sm-6">
+            <span class="small text-muted fw-semibold d-block">Official Email</span>
+            <span class="fs-6 fw-medium">{{ employee.email }}</span>
+          </div>
+
+          <div class="col-12 col-sm-6">
+            <span class="small text-muted fw-semibold d-block">Phone Number</span>
+            <span class="fs-6 fw-medium">{{ employee.phone|default:"Not provided" }}</span>
+          </div>
+
+          {% if is_admin_or_hr or is_self %}
+            <div class="col-12 col-sm-6">
+              <span class="small text-muted fw-semibold d-block">Base Salary</span>
+              <span class="fs-6 fw-medium">${{ employee.base_salary|floatformat:2 }}</span>
+            </div>
+          {% endif %}
+
+          <div class="col-12 col-sm-6">
+            <span class="small text-muted fw-semibold d-block">Linked User Account</span>
+            <span class="fs-6 fw-medium">
+              {% if employee.user %}
+                <i class="bi bi-shield-check text-success me-1"></i>{{ employee.user.email }} ({{ employee.user.get_role_display }})
+              {% else %}
+                <span class="text-muted fst-italic">No user account linked</span>
+              {% endif %}
+            </span>
+          </div>
+
+          <div class="col-12 col-sm-6">
+            <span class="small text-muted fw-semibold d-block">Emergency Contact</span>
+            <span class="fs-6 fw-medium">{{ employee.emergency_contact|default:"Not provided" }}</span>
+          </div>
+
+          <div class="col-12">
+            <span class="small text-muted fw-semibold d-block">Residential Address</span>
+            <p class="fs-6 fw-medium mb-0">{{ employee.address|default:"Not provided"|linebreaksbr }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
-
-<div class="card">
-  <div class="card-body">
-    <div class="d-flex justify-content-between mb-1">
-      <span>Profile completeness</span><strong>{{ employee.completeness }}%</strong>
-    </div>
-    <div class="progress" role="progressbar" aria-valuenow="{{ employee.completeness }}" aria-valuemin="0" aria-valuemax="100">
-      <div class="progress-bar {% if employee.completeness < 70 %}bg-warning{% else %}bg-success{% endif %}"
-           style="width: {{ employee.completeness }}%"></div>
-    </div>
-  </div>
-</div>
-
-<a href="{% url 'reports:preview_employee_list' %}" class="btn btn-link mt-3">&larr; Back to employees</a>
 {% endblock %}
