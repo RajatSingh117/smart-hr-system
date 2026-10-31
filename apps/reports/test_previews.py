@@ -99,3 +99,23 @@ class PreviewPageTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("reports:preview_notification_list"), {"status":"Unread"})
         self.assertEqual(response.context["page_obj"].paginator.count, 2)
+
+
+class ProjectUrlConfTests(TestCase):
+    """No override_settings here: uses the real config/urls.py."""
+
+    def setUp(self):
+        self.user = make_user("realurl", "admin")
+        self.client.force_login(self.user)
+
+    def test_reports_pages_open_with_project_urls(self):
+        for name in PAGES + ["reports:exports"]:
+            with self.subTest(name=name):
+                response = self.client.get(reverse(name))
+                self.assertEqual(response.status_code, 200)
+
+    def test_month_picker_changes_month(self):
+        url = reverse("reports:preview_attendance_summary")
+        response = self.client.get(url, {"month": "2026-03"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["month"], "2026-03")
