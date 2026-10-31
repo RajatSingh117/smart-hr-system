@@ -27,6 +27,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         'department',
         'job_title',
         'employment_status',
+        'base_salary',
         'joining_date',
         'is_active_employee',
     )

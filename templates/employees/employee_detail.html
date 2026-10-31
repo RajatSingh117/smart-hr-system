@@ -108,7 +108,7 @@
             <span class="fs-6 fw-medium">{{ employee.phone|default:"Not provided" }}</span>
           </div>
 
-          {% if is_admin_or_hr %}
+          {% if is_admin_or_hr or is_self %}
             <div class="col-12 col-sm-6">
               <span class="small text-muted fw-semibold d-block">Base Salary</span>
               <span class="fs-6 fw-medium">${{ employee.base_salary|floatformat:2 }}</span>

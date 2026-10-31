@@ -2,6 +2,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 
 from apps.accounts.mixins import AuditedModelMixin
@@ -50,6 +51,12 @@ class Department(AuditedModelMixin):
 
     def clean(self):
         super().clean()
+        if self.name:
+            qs = Department.objects.filter(name__iexact=self.name.strip())
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError({'name': _('A department with this name already exists.')})
         if self.department_head_id:
             try:
                 head = self.department_head
@@ -59,6 +66,19 @@ class Department(AuditedModelMixin):
                 raise ValidationError({
                     'department_head': _('Only active employees may be selected as department head.')
                 })
+
+    def save(self, *args, **kwargs):
+        if self.name:
+            self.name = self.name.strip()
+        super().save(*args, **kwargs)
+
+    @property
+    def total_base_salary(self):
+        """Sum of monthly base salary for all active employees assigned to this department."""
+        result = self.employees.filter(
+            employment_status='ACTIVE'
+        ).aggregate(total=Sum('base_salary'))['total']
+        return result or Decimal('0.00')
 
 
 class JobTitle(AuditedModelMixin):
@@ -91,6 +111,20 @@ class JobTitle(AuditedModelMixin):
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        super().clean()
+        if self.title:
+            qs = JobTitle.objects.filter(title__iexact=self.title.strip())
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError({'title': _('A job title with this name already exists.')})
+
+    def save(self, *args, **kwargs):
+        if self.title:
+            self.title = self.title.strip()
+        super().save(*args, **kwargs)
 
 
 class Employee(AuditedModelMixin):
@@ -210,6 +244,52 @@ class Employee(AuditedModelMixin):
         """Returns True if the employee is currently in ACTIVE status."""
         return self.employment_status == self.EmploymentStatus.ACTIVE
 
+    @property
+    def basic_salary(self):
+        """
+        Alias for base_salary to ensure seamless interoperability with
+        apps.payroll naming conventions (PayrollRecord.basic_salary).
+        """
+        return self.base_salary
+
+    @basic_salary.setter
+    def basic_salary(self, value):
+        self.base_salary = value
+
+    def get_base_salary(self):
+        """Return the employee's current monthly base salary as a Decimal."""
+        return self.base_salary
+
+    def clean(self):
+        super().clean()
+        if self.base_salary is not None and self.base_salary < Decimal('0.00'):
+            raise ValidationError({'base_salary': _('Base salary cannot be negative.')})
+        if self.employee_id:
+            qs = Employee.objects.filter(employee_id__iexact=self.employee_id.strip())
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError({'employee_id': _('An employee with this Employee ID already exists.')})
+        if self.email:
+            qs = Employee.objects.filter(email__iexact=self.email.strip())
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError({'email': _('An employee with this email address already exists.')})
+        if self.user_id:
+            qs = Employee.objects.filter(user_id=self.user_id)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError({'user': _('This user account is already linked to another employee.')})
+
+    def save(self, *args, **kwargs):
+        if self.employee_id:
+            self.employee_id = self.employee_id.strip()
+        if self.email:
+            self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
     def calculate_profile_completeness(self):
         """
         Calculates profile completeness percentage based on 10 profile dimensions:
@@ -225,15 +305,15 @@ class Employee(AuditedModelMixin):
         10. user_id (linked user account)
         """
         metrics = [
-            bool(self.full_name),
-            bool(self.email),
-            bool(self.phone),
+            bool(self.full_name and self.full_name.strip()),
+            bool(self.email and self.email.strip()),
+            bool(self.phone and self.phone.strip()),
             bool(self.department_id),
             bool(self.job_title_id),
             bool(self.joining_date),
             bool(self.base_salary and self.base_salary > Decimal('0.00')),
-            bool(self.address),
-            bool(self.emergency_contact),
+            bool(self.address and self.address.strip()),
+            bool(self.emergency_contact and self.emergency_contact.strip()),
             bool(self.user_id),
         ]
         completed = sum(1 for m in metrics if m)
