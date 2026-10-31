@@ -1,0 +1,21 @@
+{# Needs `search_q`, optional `search_placeholder`, and `filters` = list of {name, label, options, selected}. #}
+<form method="get" class="row g-2 mb-3">
+  <div class="col-12 col-md-4">
+    <input type="search" name="q" value="{{ search_q }}" class="form-control"
+           placeholder="{{ search_placeholder|default:'Search...' }}">
+  </div>
+  {% for f in filters %}
+    <div class="col-6 col-md-3">
+      <select name="{{ f.name }}" class="form-select">
+        <option value="">{{ f.label }}: All</option>
+        {% for opt in f.options %}
+          <option value="{{ opt }}" {% if opt == f.selected %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  {% endfor %}
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Filter</button>
+    <a href="{{ request.path }}" class="btn btn-outline-secondary">Reset</a>
+  </div>
+</form>

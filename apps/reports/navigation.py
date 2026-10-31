@@ -13,7 +13,7 @@ MENU = [
     {"label": "Leave", "icon": "🌴", "url_name": "leave_management:list", "roles": {ADMIN, HR, EMPLOYEE}},
     {"label": "Payroll", "icon": "💰", "url_name": "payroll:list", "roles": {ADMIN, HR}},
     {"label": "My Payslips", "icon": "📄", "url_name": "payroll:my_payslips", "roles": {EMPLOYEE}},
-    {"label": "Reports", "icon": "📈", "url_name": "reports:summary", "roles": {ADMIN, HR}},
+    {"label": "Reports", "icon": "📈", "url_name": "reports:exports", "roles": {ADMIN, HR}},
     {"label": "Audit Log", "icon": "🛡️", "url_name": "accounts:audit_log", "roles": {ADMIN}},
 ]
 

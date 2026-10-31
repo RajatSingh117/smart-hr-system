@@ -1,0 +1,26 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}Notifications{% endblock %}
+{% block page_heading %}Notifications{% endblock %}
+
+{% block dashboard_body %}
+<div class="card">
+  <div class="list-group list-group-flush">
+    {% for n in notifications %}
+      <div class="list-group-item {% if n.status == 'Unread' %}bg-light{% endif %}">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h6 class="mb-1">
+              {{ n.title }}
+              {% if n.status == 'Unread' %}<span class="badge bg-primary ms-2">New</span>{% endif %}
+            </h6>
+            <p class="mb-0 text-muted">{{ n.message }}</p>
+          </div>
+          <small class="text-muted">{{ n.time }}</small>
+        </div>
+      </div>
+    {% empty %}
+      <div class="list-group-item">{% include "partials/_empty_state.html" with message="No notifications yet." %}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}Reports and exports{% endblock %}
+{% block page_heading %}Reports and exports{% endblock %}
+
+{% block dashboard_body %}
+<div class="card">
+  <div class="card-body">
+    <p class="text-muted">Download employee, attendance, leave and payroll data. Export buttons will be enabled soon.</p>
+    <div class="d-flex flex-wrap gap-2">
+      <button type="button" class="btn btn-outline-primary" disabled>Download CSV</button>
+      <button type="button" class="btn btn-outline-primary" disabled>Download Excel</button>
+      <button type="button" class="btn btn-outline-primary" disabled>Download PDF</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
