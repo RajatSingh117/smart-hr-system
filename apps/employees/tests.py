@@ -19,6 +19,7 @@ from django.urls import reverse
 from apps.accounts.models import AuditEvent
 from apps.employees.forms import DepartmentForm, EmployeeForm
 from apps.employees.models import Department, JobTitle, Employee
+from apps.payroll.models import PayrollPeriod, PayrollRecord
 from apps.employees.views import (
     department_create,
     department_delete,
@@ -1409,3 +1410,481 @@ class EmployeeIntegrationAndTemplateTests(TestCase):
         self.assertContains(res_del, 'Deletion Blocked by Referential Integrity')
         self.assertContains(res_del, 'departments with assigned employees cannot be deleted')
         self.assertNotContains(res_del, 'departments with active employees cannot be deleted')
+
+
+class EmployeePayrollIntegrationTests(TestCase):
+    """
+    Week 3 Integration tests verifying the contract between apps.employees and apps.payroll:
+    - ForeignKey and reverse relationships
+    - Base salary availability and precision
+    - Compatibility aliases (basic_salary)
+    - Historical snapshot preservation on employee salary updates
+    - Protected deletion for employees with payroll history
+    - Department salary rollups and active employee filtering
+    """
+
+    def setUp(self):
+        self.dept = Department.objects.create(name='Finance & Operations')
+        self.job = JobTitle.objects.create(title='Financial Analyst')
+        self.employee = Employee.objects.create(
+            employee_id='EMP-PAY-01',
+            full_name='Jordan Lee',
+            email='jordan.lee@example.com',
+            joining_date=date(2026, 1, 1),
+            department=self.dept,
+            job_title=self.job,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal('45000.00'),
+        )
+        self.period_oct = PayrollPeriod.objects.create(
+            name='October 2026',
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 31),
+        )
+        self.period_nov = PayrollPeriod.objects.create(
+            name='November 2026',
+            start_date=date(2026, 11, 1),
+            end_date=date(2026, 11, 30),
+        )
+
+    def test_payroll_record_foreign_key_to_employee_and_base_salary(self):
+        """PayrollRecord successfully references Employee and reads employee base_salary."""
+        record = PayrollRecord.objects.create(
+            employee=self.employee,
+            payroll_period=self.period_oct,
+            basic_salary=self.employee.base_salary,
+            total_allowances=Decimal('3500.00'),
+            total_deductions=Decimal('1500.00'),
+        )
+        self.assertEqual(record.employee, self.employee)
+        self.assertEqual(record.basic_salary, Decimal('45000.00'))
+        self.assertEqual(record.gross_salary, Decimal('48500.00'))
+        self.assertEqual(record.net_salary, Decimal('47000.00'))
+
+    def test_employee_payroll_records_reverse_relationship(self):
+        """Employee model accesses its payroll history via the payroll_records related name."""
+        record = PayrollRecord.objects.create(
+            employee=self.employee,
+            payroll_period=self.period_oct,
+            basic_salary=self.employee.base_salary,
+        )
+        self.assertIn(record, self.employee.payroll_records.all())
+        self.assertEqual(self.employee.payroll_records.count(), 1)
+
+    def test_employee_basic_salary_property_alias(self):
+        """Employee provides basic_salary property getter/setter for compatibility with payroll naming."""
+        self.assertEqual(self.employee.basic_salary, Decimal('45000.00'))
+        self.assertEqual(self.employee.basic_salary, self.employee.base_salary)
+
+        # Setter updates base_salary
+        self.employee.basic_salary = Decimal('52000.00')
+        self.assertEqual(self.employee.base_salary, Decimal('52000.00'))
+
+    def test_employee_get_base_salary_method(self):
+        """get_base_salary() returns base_salary with proper Decimal type."""
+        salary = self.employee.get_base_salary()
+        self.assertIsInstance(salary, Decimal)
+        self.assertEqual(salary, Decimal('45000.00'))
+
+    def test_salary_decimal_precision_is_preserved(self):
+        """Financial precision to two decimal places is strictly maintained without floating point drift."""
+        precise_emp = Employee.objects.create(
+            employee_id='EMP-PREC',
+            full_name='Precision Employee',
+            email='precision@example.com',
+            joining_date=date(2026, 2, 1),
+            base_salary=Decimal('12345.67'),
+        )
+        record = PayrollRecord.objects.create(
+            employee=precise_emp,
+            payroll_period=self.period_oct,
+            basic_salary=precise_emp.base_salary,
+            total_allowances=Decimal('0.33'),
+            total_deductions=Decimal('100.00'),
+        )
+        self.assertEqual(record.basic_salary, Decimal('12345.67'))
+        self.assertEqual(record.gross_salary, Decimal('12346.00'))
+        self.assertEqual(record.net_salary, Decimal('12246.00'))
+
+    def test_updating_employee_base_salary_preserves_historical_snapshots(self):
+        """
+        Modifying an employee's base salary updates future payroll records while
+        leaving past historical PayrollRecord snapshots completely intact.
+        """
+        historical_record = PayrollRecord.objects.create(
+            employee=self.employee,
+            payroll_period=self.period_oct,
+            basic_salary=self.employee.base_salary,
+        )
+        self.assertEqual(historical_record.basic_salary, Decimal('45000.00'))
+
+        self.employee.base_salary = Decimal('55000.00')
+        self.employee.save()
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.base_salary, Decimal('55000.00'))
+
+        future_record = PayrollRecord.objects.create(
+            employee=self.employee,
+            payroll_period=self.period_nov,
+            basic_salary=self.employee.base_salary,
+        )
+
+        historical_record.refresh_from_db()
+        self.assertEqual(historical_record.basic_salary, Decimal('45000.00'))
+        self.assertEqual(future_record.basic_salary, Decimal('55000.00'))
+
+    def test_employee_with_payroll_records_cannot_be_deleted(self):
+        """ProtectedError is raised when attempting to delete an employee with existing payroll records."""
+        PayrollRecord.objects.create(
+            employee=self.employee,
+            payroll_period=self.period_oct,
+            basic_salary=self.employee.base_salary,
+        )
+        with self.assertRaises(ProtectedError):
+            self.employee.delete()
+
+    def test_zero_salary_employee_payroll_integration(self):
+        """A valid zero salary is handled correctly by both employee and payroll models."""
+        intern = Employee.objects.create(
+            employee_id='EMP-INT-01',
+            full_name='Unpaid Intern',
+            email='intern@example.com',
+            joining_date=date(2026, 6, 1),
+            base_salary=Decimal('0.00'),
+        )
+        record = PayrollRecord.objects.create(
+            employee=intern,
+            payroll_period=self.period_oct,
+            basic_salary=intern.base_salary,
+            total_allowances=Decimal('500.00'),
+            total_deductions=Decimal('0.00'),
+        )
+        self.assertEqual(record.basic_salary, Decimal('0.00'))
+        self.assertEqual(record.gross_salary, Decimal('500.00'))
+        self.assertEqual(record.net_salary, Decimal('500.00'))
+
+    def test_on_leave_and_terminated_employee_payroll_records(self):
+        """Employees on leave or terminated maintain their relationship with historical payroll records."""
+        record = PayrollRecord.objects.create(
+            employee=self.employee,
+            payroll_period=self.period_oct,
+            basic_salary=self.employee.base_salary,
+        )
+
+        self.employee.employment_status = Employee.EmploymentStatus.ON_LEAVE
+        self.employee.save()
+        self.assertEqual(self.employee.payroll_records.first(), record)
+
+        self.employee.employment_status = Employee.EmploymentStatus.TERMINATED
+        self.employee.save()
+        self.assertEqual(self.employee.payroll_records.first(), record)
+
+    def test_department_total_base_salary_property(self):
+        """Department.total_base_salary correctly aggregates the base salaries of active department members."""
+        Employee.objects.create(
+            employee_id='EMP-PAY-02',
+            full_name='Alex Rivera',
+            email='alex.rivera@example.com',
+            joining_date=date(2026, 1, 15),
+            department=self.dept,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal('35000.00'),
+        )
+        self.assertEqual(self.dept.total_base_salary, Decimal('80000.00'))
+
+    def test_department_total_base_salary_excludes_terminated_employees(self):
+        """Terminated employees are excluded from department total base salary rollup."""
+        Employee.objects.create(
+            employee_id='EMP-PAY-TERM',
+            full_name='Former Employee',
+            email='former@example.com',
+            joining_date=date(2025, 1, 1),
+            department=self.dept,
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+            base_salary=Decimal('100000.00'),
+        )
+        self.assertEqual(self.dept.total_base_salary, Decimal('45000.00'))
+
+    def test_department_total_base_salary_empty_department(self):
+        """Department with no employees returns Decimal('0.00') without errors."""
+        empty_dept = Department.objects.create(name='New Empty Department')
+        self.assertEqual(empty_dept.total_base_salary, Decimal('0.00'))
+
+
+class EmployeeModelCleanAndValidationTests(TestCase):
+    """
+    Unit tests for model-level clean() validation, save normalization, and profile completeness:
+    - Non-negative salary validation
+    - Case-insensitive uniqueness for employee ID, email, and department name
+    - User account linking validation
+    - Department head employment status validation
+    - Robust profile completeness calculation ignoring whitespace
+    """
+
+    def setUp(self):
+        self.dept = Department.objects.create(name='Technology')
+        self.job = JobTitle.objects.create(title='DevOps Engineer')
+        self.user1 = User.objects.create_user(email='user_val1@example.com', password='TestPassword123!')
+        self.user2 = User.objects.create_user(email='user_val2@example.com', password='TestPassword123!')
+        self.employee = Employee.objects.create(
+            user=self.user1,
+            employee_id='EMP-VAL-01',
+            full_name='Morgan Stark',
+            email='morgan@example.com',
+            joining_date=date(2026, 1, 1),
+            department=self.dept,
+            job_title=self.job,
+            base_salary=Decimal('8000.00'),
+        )
+
+    def test_employee_clean_rejects_negative_salary(self):
+        """Employee.clean() raises ValidationError if base_salary is negative."""
+        emp = Employee(
+            employee_id='EMP-NEG-01',
+            full_name='Negative Salary Test',
+            email='negtest@example.com',
+            joining_date=date(2026, 1, 1),
+            base_salary=Decimal('-100.00'),
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            emp.clean()
+        self.assertIn('base_salary', ctx.exception.message_dict)
+
+    def test_employee_clean_rejects_case_insensitive_duplicate_employee_id(self):
+        """Employee.clean() rejects duplicate employee IDs regardless of case."""
+        dup_emp = Employee(
+            employee_id='emp-val-01',
+            full_name='Duplicate ID Test',
+            email='dup_id@example.com',
+            joining_date=date(2026, 1, 1),
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            dup_emp.clean()
+        self.assertIn('employee_id', ctx.exception.message_dict)
+
+    def test_employee_clean_rejects_case_insensitive_duplicate_email(self):
+        """Employee.clean() rejects duplicate emails regardless of case."""
+        dup_emp = Employee(
+            employee_id='EMP-VAL-99',
+            full_name='Duplicate Email Test',
+            email='MORGAN@EXAMPLE.COM',
+            joining_date=date(2026, 1, 1),
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            dup_emp.clean()
+        self.assertIn('email', ctx.exception.message_dict)
+
+    def test_employee_clean_allows_own_id_and_email_on_update(self):
+        """Calling clean() on an existing record with the same ID and email succeeds."""
+        self.employee.full_name = 'Morgan Stark Updated'
+        try:
+            self.employee.clean()
+        except ValidationError:
+            self.fail('clean() raised ValidationError unexpectedly on valid update.')
+
+    def test_employee_clean_rejects_linking_already_linked_user(self):
+        """Employee.clean() rejects assigning a user account already assigned to another employee."""
+        emp2 = Employee(
+            employee_id='EMP-VAL-02',
+            full_name='Second Person',
+            email='second@example.com',
+            joining_date=date(2026, 1, 1),
+            user=self.user1,
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            emp2.clean()
+        self.assertIn('user', ctx.exception.message_dict)
+
+    def test_employee_save_strips_id_and_lowercases_email(self):
+        """Employee.save() normalizes whitespace from employee_id and lowercases email."""
+        emp = Employee.objects.create(
+            employee_id='  EMP-TRIM-01  ',
+            full_name='Trim Test',
+            email='  Trim.User@Domain.COM  ',
+            joining_date=date(2026, 1, 1),
+            base_salary=Decimal('5000.00'),
+        )
+        self.assertEqual(emp.employee_id, 'EMP-TRIM-01')
+        self.assertEqual(emp.email, 'trim.user@domain.com')
+
+    def test_department_clean_rejects_duplicate_name_case_insensitive(self):
+        """Department.clean() rejects duplicate department names case-insensitively."""
+        dup_dept = Department(name='technology')
+        with self.assertRaises(ValidationError) as ctx:
+            dup_dept.clean()
+        self.assertIn('name', ctx.exception.message_dict)
+
+    def test_department_clean_rejects_terminated_department_head(self):
+        """Department.clean() rejects assigning a terminated employee as department head."""
+        terminated_emp = Employee.objects.create(
+            employee_id='EMP-TERM-HEAD',
+            full_name='Terminated Head',
+            email='termhead@example.com',
+            joining_date=date(2026, 1, 1),
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+        )
+        dept = Department(name='Operations', department_head=terminated_emp)
+        with self.assertRaises(ValidationError) as ctx:
+            dept.clean()
+        self.assertIn('department_head', ctx.exception.message_dict)
+
+    def test_department_save_strips_name(self):
+        """Department.save() trims extraneous whitespace from department name."""
+        dept = Department.objects.create(name='  Legal Affairs  ')
+        self.assertEqual(dept.name, 'Legal Affairs')
+
+    def test_job_title_clean_rejects_duplicate_title_case_insensitive(self):
+        """JobTitle.clean() rejects duplicate job titles case-insensitively."""
+        dup_job = JobTitle(title='devops engineer')
+        with self.assertRaises(ValidationError) as ctx:
+            dup_job.clean()
+        self.assertIn('title', ctx.exception.message_dict)
+
+    def test_job_title_save_strips_title(self):
+        """JobTitle.save() trims extraneous whitespace from job title."""
+        job = JobTitle.objects.create(title='  Cloud Architect  ')
+        self.assertEqual(job.title, 'Cloud Architect')
+
+    def test_profile_completeness_ignores_whitespace_strings(self):
+        """Profile completeness treats whitespace-only strings as incomplete."""
+        emp = Employee.objects.create(
+            employee_id='EMP-SPACE',
+            full_name='Space Employee',
+            email='space@example.com',
+            phone='   ',
+            address='   \n  ',
+            emergency_contact='   ',
+            joining_date=date(2026, 1, 1),
+            base_salary=Decimal('0.00'),
+        )
+        self.assertEqual(emp.calculate_profile_completeness(), 30)
+
+
+class EmployeeViewAndSecurityExtendedTests(TestCase):
+    """
+    Extended view and security tests:
+    - 404 handling on missing resources
+    - URL aliases resolution
+    - Department head termination validation in DepartmentForm
+    - Employee status filtering case-insensitivity
+    - Own-profile salary visibility
+    """
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.hr_user = User.objects.create_user(
+            email='ext_hr@example.com',
+            password='TestPassword123!',
+            role=User.Role.HR,
+        )
+        self.emp_user = User.objects.create_user(
+            email='ext_emp@example.com',
+            password='TestPassword123!',
+            role=User.Role.EMPLOYEE,
+        )
+        self.dept = Department.objects.create(name='Customer Success')
+        self.employee = Employee.objects.create(
+            user=self.emp_user,
+            employee_id='EMP-EXT-01',
+            full_name='Taylor Swift',
+            email='taylor@example.com',
+            joining_date=date(2026, 1, 1),
+            department=self.dept,
+            base_salary=Decimal('95000.00'),
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+        )
+
+    def _prepare_request(self, request, user=None):
+        request.user = user if user else AnonymousUser()
+        SessionMiddleware(lambda r: None).process_request(request)
+        MessageMiddleware(lambda r: None).process_request(request)
+        return request
+
+    def _fake_render(self, request, template_name, context=None, status=200):
+        resp = HttpResponse(f'rendered {template_name}', status=status)
+        resp.template_name = template_name
+        resp.context = context or {}
+        return resp
+
+    def test_employee_detail_404_for_nonexistent_employee(self):
+        """Accessing a nonexistent employee ID raises Http404."""
+        request = self.factory.get('/employees/99999/')
+        self._prepare_request(request, self.hr_user)
+        from django.http import Http404
+        with self.assertRaises(Http404):
+            employee_detail(request, pk=99999)
+
+    def test_employee_edit_404_for_nonexistent_employee(self):
+        """Editing a nonexistent employee ID raises Http404."""
+        request = self.factory.get('/employees/99999/edit/')
+        self._prepare_request(request, self.hr_user)
+        from django.http import Http404
+        with self.assertRaises(Http404):
+            employee_edit(request, pk=99999)
+
+    def test_department_edit_404_for_nonexistent_department(self):
+        """Editing a nonexistent department ID raises Http404."""
+        request = self.factory.get('/employees/departments/99999/edit/')
+        self._prepare_request(request, self.hr_user)
+        from django.http import Http404
+        with self.assertRaises(Http404):
+            department_edit(request, pk=99999)
+
+    def test_department_delete_404_for_nonexistent_department(self):
+        """Deleting a nonexistent department ID raises Http404."""
+        request = self.factory.get('/employees/departments/99999/delete/')
+        self._prepare_request(request, self.hr_user)
+        from django.http import Http404
+        with self.assertRaises(Http404):
+            department_delete(request, pk=99999)
+
+    def test_url_aliases_reverse_resolution(self):
+        """Both canonical and alias URL route names resolve without NoReverseMatch."""
+        self.assertEqual(reverse('employees:employee_detail', args=[self.employee.pk]), f'/employees/{self.employee.pk}/')
+        self.assertEqual(reverse('employees:detail', args=[self.employee.pk]), f'/employees/{self.employee.pk}/')
+        self.assertEqual(reverse('employees:employee_create'), '/employees/create/')
+        self.assertEqual(reverse('employees:create'), '/employees/create/')
+        self.assertEqual(reverse('employees:employee_edit', args=[self.employee.pk]), f'/employees/{self.employee.pk}/edit/')
+        self.assertEqual(reverse('employees:edit', args=[self.employee.pk]), f'/employees/{self.employee.pk}/edit/')
+        self.assertEqual(reverse('employees:department_list'), '/employees/departments/')
+        self.assertEqual(reverse('employees:departments'), '/employees/departments/list/')
+
+    def test_department_form_rejects_terminated_department_head(self):
+        """DepartmentForm rejects assigning a terminated employee as department head."""
+        term_emp = Employee.objects.create(
+            employee_id='EMP-FORM-TERM',
+            full_name='Terminated Candidate',
+            email='termcand@example.com',
+            joining_date=date(2026, 1, 1),
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+        )
+        data = {
+            'name': 'Infrastructure Team',
+            'department_head': term_emp.pk,
+            'is_active': True,
+        }
+        form = DepartmentForm(data=data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('department_head', form.errors)
+
+    @patch('apps.employees.views.render')
+    def test_employee_list_filter_status_case_insensitive_and_normalized(self, mock_render):
+        """Lowercase status query parameter ?employment_status=on_leave filters and normalizes selected_status."""
+        mock_render.side_effect = self._fake_render
+        request = self.factory.get('/employees/?employment_status=on_leave')
+        self._prepare_request(request, self.hr_user)
+        response = employee_list(request)
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(response.context['selected_status'], 'ON_LEAVE')
+        results = list(response.context['page_obj'].object_list)
+        self.assertIn(self.employee, results)
+
+    def test_employee_detail_own_profile_shows_salary_to_employee(self):
+        """Employee viewing their own profile using test client receives template with base salary visible."""
+        self.client.force_login(self.emp_user)
+        url = reverse('employees:employee_detail', args=[self.employee.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Base Salary')
+        self.assertContains(response, '95000.00')
