@@ -190,5 +190,9 @@ urlpatterns = [
         "reports/",
         include("apps.reports.urls", namespace="reports"),
     ),
+    path(
+        "payroll/",
+        include("apps.payroll.urls", namespace="payroll"),
+    ),
     path("", lambda request: redirect("accounts:login")),
 ]

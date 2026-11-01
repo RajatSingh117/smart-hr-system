@@ -1,4 +1,5 @@
 import uuid
+import logging
 from io import BytesIO
 
 from django.core.files.base import ContentFile
@@ -18,6 +19,10 @@ from reportlab.platypus import (
 )
 
 from .models import Payslip
+from .notifications import send_notification
+
+
+logger = logging.getLogger(__name__)
 
 
 def generate_payslip_pdf(payroll_record):
@@ -174,15 +179,54 @@ def generate_payslip_pdf(payroll_record):
             save=False,
         )
 
+        # Mark payslip as generated.
         payslip.status = Payslip.Status.GENERATED
         payslip.save()
 
-        return payslip
-
     except Exception:
-        # Record PDF generation failure.
+        # Mark as failed only if PDF generation or saving fails.
         if payslip is not None:
             payslip.status = Payslip.Status.FAILED
             payslip.save(update_fields=["status"])
 
+        logger.exception(
+            "Payslip PDF generation failed for payroll record ID %s",
+            payroll_record.pk,
+        )
         raise
+
+    # Send notification only after successful PDF generation.
+    # Notification failure must not change the payslip status.
+    employee = payroll_record.employee
+    period = payroll_record.payroll_period
+
+    if employee.email:
+        try:
+            send_notification(
+                notification_name="payslip_ready",
+                recipient=employee.email,
+                context={
+                    "employee_name": employee.full_name,
+                    "payroll_period": period.name,
+                    "payslip_number": payslip.payslip_number,
+                    "net_salary": (
+                        f"Rs. {payroll_record.net_salary:,.2f}"
+                    ),
+                },
+                subject="Your Payslip Is Ready",
+            )
+
+        except Exception:
+            logger.exception(
+                "Failed to send payslip notification for employee ID %s",
+                employee.pk,
+            )
+
+    else:
+        logger.warning(
+            "No email address for employee ID %s. "
+            "Payslip notification skipped.",
+            employee.pk,
+        )
+
+    return payslip
