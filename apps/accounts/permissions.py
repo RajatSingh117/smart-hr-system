@@ -61,15 +61,19 @@ class IsOwnerOrHR(permissions.BasePermission):
 
 class CanAccessPayroll(permissions.BasePermission):
     """
-    Allows access to payroll data for authenticated users.
+    Allows access to payroll data for ADMIN, HR, and EMPLOYEE roles.
     Object-level permission enforces ownership: employees see only their own,
     HR/Admin see all. Reusable for M5 payroll views.
     """
 
-    message = 'Payroll access requires authentication.'
+    message = 'Payroll access requires ADMIN, HR, or EMPLOYEE role.'
 
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in [User.Role.ADMIN, User.Role.HR, User.Role.EMPLOYEE]
+        )
 
     def has_object_permission(self, request, view, obj):
         # Admin and HR can access all payroll records
@@ -79,13 +83,13 @@ class CanAccessPayroll(permissions.BasePermission):
         # Employee can only access their own payroll
         # Check various relationships: obj.employee, obj.employee.user, obj.user, obj.payroll_record.employee.user
         if hasattr(obj, 'employee'):
-            # PayrollRecord has employee field
             return obj.employee.user == request.user
+        if hasattr(obj, 'user'):
+            return obj.user == request.user
+        # PayrollRecord has employee field
         if hasattr(obj, 'payroll_record'):
             # Payslip has payroll_record.employee.user
             return obj.payroll_record.employee.user == request.user
-        if hasattr(obj, 'user'):
-            return obj.user == request.user
         return False
 
 
