@@ -87,8 +87,8 @@ class User(AbstractUser):
         return self.role == self.Role.EMPLOYEE
 
     def can_access_payroll(self):
-        """Check if user can access payroll data."""
-        return self.role in [self.Role.ADMIN, self.Role.HR]
+        """Check if user can access payroll data (self-service for employees)."""
+        return self.role in [self.Role.ADMIN, self.Role.HR, self.Role.EMPLOYEE]
 
     def can_manage_users(self):
         """Check if user can manage other users."""
