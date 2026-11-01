@@ -102,7 +102,7 @@ class UserModelTests(TestCase):
         """Test can_access_payroll method."""
         self.assertTrue(self.admin.can_access_payroll())
         self.assertTrue(self.hr.can_access_payroll())
-        self.assertFalse(self.employee.can_access_payroll())
+        self.assertTrue(self.employee.can_access_payroll())
 
     def test_can_manage_users(self):
         """Test can_manage_users method."""
@@ -359,9 +359,9 @@ class PermissionTests(TestCase):
         request.user = self.hr
         self.assertTrue(perm.has_permission(request, None))
 
-        # Employee does not have permission
+        # Employee has permission (self-service)
         request.user = self.employee
-        self.assertFalse(perm.has_permission(request, None))
+        self.assertTrue(perm.has_permission(request, None))
 
         # Employee cannot access other's payroll
         request.user = self.employee
@@ -504,5 +504,5 @@ class APIUserInfoTests(TestCase):
         self.assertFalse(data['is_admin'])
         self.assertFalse(data['is_hr'])
         self.assertTrue(data['is_employee'])
-        self.assertFalse(data['can_access_payroll'])
+        self.assertTrue(data['can_access_payroll'])
         self.assertFalse(data['can_manage_users'])
