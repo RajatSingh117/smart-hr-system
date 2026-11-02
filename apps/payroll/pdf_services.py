@@ -19,7 +19,7 @@ from reportlab.platypus import (
 )
 
 from .models import Payslip
-from .notifications import send_notification
+from .tasks import send_notification_task
 
 
 logger = logging.getLogger(__name__)
@@ -195,14 +195,14 @@ def generate_payslip_pdf(payroll_record):
         )
         raise
 
-    # Send notification only after successful PDF generation.
+        # Queue notification only after successful PDF generation.
     # Notification failure must not change the payslip status.
     employee = payroll_record.employee
     period = payroll_record.payroll_period
 
     if employee.email:
         try:
-            send_notification(
+            send_notification_task.delay(
                 notification_name="payslip_ready",
                 recipient=employee.email,
                 context={
@@ -218,15 +218,8 @@ def generate_payslip_pdf(payroll_record):
 
         except Exception:
             logger.exception(
-                "Failed to send payslip notification for employee ID %s",
-                employee.pk,
+                "Failed to queue payslip notification for payroll "
+                "record ID %s",
+                payroll_record.pk,
             )
-
-    else:
-        logger.warning(
-            "No email address for employee ID %s. "
-            "Payslip notification skipped.",
-            employee.pk,
-        )
-
     return payslip

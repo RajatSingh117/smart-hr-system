@@ -23,7 +23,6 @@ class IsHR(permissions.BasePermission):
     """
 
     message = 'Only HR or Admin users can access this resource.'
-
     def has_permission(self, request, view):
         return (
             request.user
@@ -49,20 +48,23 @@ class IsOwnerOrHR(permissions.BasePermission):
             return True
 
         # Employee can only access their own records
-        # Check if obj is a User or has a user/employee field
         if hasattr(obj, 'user'):
             return obj.user == request.user
+
         if hasattr(obj, 'employee'):
             return obj.employee.user == request.user
+
         if isinstance(obj, User):
             return obj == request.user
+
         return False
 
 
 class CanAccessPayroll(permissions.BasePermission):
     """
-    Allows access to payroll data for Admin and HR only.
-    Reusable for M5 payroll views.
+    Allows HR and Admin to access payroll generally.
+    Employees can access only their own payroll objects
+    through object-level permission checks.
     """
 
     message = 'Payroll access is restricted to HR and Admin users.'
@@ -79,11 +81,18 @@ class CanAccessPayroll(permissions.BasePermission):
         if request.user.role in [User.Role.ADMIN, User.Role.HR]:
             return True
 
-        # Employee can only access their own payroll
+        # Check Payslip ownership
+        if hasattr(obj, 'payroll_record'):
+            return obj.payroll_record.employee.user == request.user
+
+        # Check PayrollRecord ownership
         if hasattr(obj, 'employee'):
             return obj.employee.user == request.user
+
+        # Check direct user ownership
         if hasattr(obj, 'user'):
             return obj.user == request.user
+
         return False
 
 
@@ -105,8 +114,11 @@ class IsSelfOrHR(permissions.BasePermission):
         # Check ownership through various relationships
         if hasattr(obj, 'user'):
             return obj.user == request.user
+
         if hasattr(obj, 'employee'):
             return obj.employee.user == request.user
+
         if isinstance(obj, User):
             return obj == request.user
+
         return False
