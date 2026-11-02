@@ -50,6 +50,7 @@ def get_attendance():
         {
             "id": a.pk,
             "employee": a.employee.full_name,
+            "employee_pk" : a.employee_id,
             "date": _date(a.date),
             "check_in": _time(a.check_in),
             "check_out": _time(a.check_out),
@@ -65,6 +66,7 @@ def get_leaves():
         {
             "id": l.pk,
             "employee": l.employee.full_name,
+            "employee_pk" : l.employee_id,
             "leave_type": l.leave_type.name,
             "start_date": _date(l.start_date),
             "end_date": _date(l.end_date),

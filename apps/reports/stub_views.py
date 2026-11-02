@@ -22,14 +22,14 @@ class StubListView(LoginRequiredMixin, TemplateView):
 
 
 class EmployeeListPreview(StubListView):
-    template_name = "employees/employee_list.html"
+    template_name = "reports_preview/employee_list.html"
     items = stubs.EMPLOYEES
     search_fields = ("name", "email", "department")
     context_name = "employees"
 
 
 class DepartmentListPreview(StubListView):
-    template_name = "employees/department_list.html"
+    template_name = "reports_preview/department_list.html"
     items = stubs.DEPARTMENTS
     context_name = "departments"
 
@@ -76,13 +76,13 @@ class StubObjectView(LoginRequiredMixin, TemplateView):
 
 
 class EmployeeDetailPreview(StubObjectView):
-    template_name = "employees/employee_detail.html"
+    template_name = "reports_preview/employee_detail.html"
     items = stubs.EMPLOYEES
     context_name = "employee"
 
 
 class EmployeeEditPreview(StubObjectView):
-    template_name = "employees/employee_form.html"
+    template_name = "reports_preview/employee_form.html"
     items = stubs.EMPLOYEES
     context_name = "employee"
 

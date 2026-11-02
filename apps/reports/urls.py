@@ -14,19 +14,19 @@ urlpatterns = [
 
     # Employees
     path("preview/employees/", data_views.RealEmployeeList.as_view(), name="preview_employee_list"),
-    path("preview/employees/new/", SimplePreview.as_view(template_name="employees/employee_form.html"), name="preview_employee_form"),
+    path("preview/employees/new/", data_views.HRSimplePreview.as_view(template_name="reports_preview/employee_form.html"), name="preview_employee_form"),
     path("preview/employees/<int:pk>/", data_views.RealEmployeeDetail.as_view(), name="preview_employee_detail"),
     path("preview/employees/<int:pk>/edit/", data_views.RealEmployeeEdit.as_view(), name="preview_employee_edit"),
 
     # Departments
     path("preview/departments/", data_views.RealDepartmentList.as_view(), name="preview_department_list"),
-    path("preview/departments/new/", SimplePreview.as_view(template_name="employees/department_form.html"), name="preview_department_create"),
+    path("preview/departments/new/", data_views.HRSimplePreview.as_view(template_name="reports_preview/department_form.html"), name="preview_department_create"),
 
     # Attendance
     path("preview/attendance/", data_views.RealAttendanceList.as_view(), name="preview_attendance_list"),
     path("preview/attendance/check/", RedirectView.as_view(pattern_name="reports:preview_attendance_list"), name="preview_attendance_check"),
     path("preview/attendance/summary/", data_views.RealMonthlySummary.as_view(), name="preview_attendance_summary"),
-    path("preview/attendance/correct/", SimplePreview.as_view(template_name="attendance/correction_form.html"), name="preview_attendance_correct"),
+    path("preview/attendance/correct/", data_views.HRSimplePreview.as_view(template_name="attendance/correction_form.html"), name="preview_attendance_correct"),
 
     # Leave
     path("preview/leave/", data_views.RealLeaveList.as_view(), name="preview_leave_list"),
@@ -34,7 +34,7 @@ urlpatterns = [
     path("preview/leave/<int:pk>/review/", data_views.RealLeaveReview.as_view(), name="preview_leave_review"),
 
     # Payroll
-    path("preview/payroll/", stub_views.PayrollListPreview.as_view(), name="preview_payroll_list"),
+    path("preview/payroll/", data_views.HRPayrollList.as_view(), name="preview_payroll_list"),
     path("preview/payslips/", stub_views.MyPayslipsPreview.as_view(), name="preview_my_payslips"),
     path("preview/payslips/<int:pk>/", stub_views.PayslipDetailPreview.as_view(), name="preview_payslip_detail"),
 
@@ -42,6 +42,6 @@ urlpatterns = [
     path("preview/notifications/", stub_views.NotificationListPreview.as_view(), name="preview_notification_list"),
 
     # Reports and Exports
-    path("exports/", SimplePreview.as_view(template_name="reports/exports.html"), name="exports"),
+    path("exports/", data_views.HRSimplePreview.as_view(template_name="reports/exports.html"), name="exports"),
 ]
 
