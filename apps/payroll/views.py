@@ -4,15 +4,15 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST, require_GET
 
-from rest_framework import generics, permissions
+from rest_framework import generics
 from rest_framework.authentication import (
     TokenAuthentication,
     SessionAuthentication,
 )
-from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
 from rest_framework.views import APIView
 
 from apps.accounts.models import User
+from apps.accounts.permissions import CanAccessPayroll
 
 from .models import PayrollRecord, Payslip
 from .serializers import PayrollRecordSerializer, PayslipSerializer
@@ -104,48 +104,43 @@ def download_payslip(request, payslip_id):
 
 
 # --------------------------------------------------
-# Payroll API permissions
-# --------------------------------------------------
-
-class PayrollAPIPermission(permissions.BasePermission):
-    """
-    HR and Admin can access all payroll data.
-    Employees can access their own individual objects.
-    """
-
-    message = "You do not have permission to access this payroll data."
-
-    def has_permission(self, request, view):
-        return request.user.is_authenticated
-
-    def has_object_permission(self, request, view, obj):
-
-        if _is_hr_or_admin(request.user):
-            return True
-
-        if request.user.role != User.Role.EMPLOYEE:
-            return False
-
-        if isinstance(obj, PayrollRecord):
-            return obj.employee.user_id == request.user.pk
-
-        if isinstance(obj, Payslip):
-            return (
-                obj.payroll_record.employee.user_id
-                == request.user.pk
-            )
-
-        return False
-
-
-# --------------------------------------------------
 # Payroll Record API
 # --------------------------------------------------
 
 class PayrollRecordListAPIView(generics.ListAPIView):
 
     serializer_class = PayrollRecordSerializer
-    permission_classes = [PayrollAPIPermission]
+    permission_classes = [CanAccessPayroll]
+
+    authentication_classes = [
+        TokenAuthentication,
+        SessionAuthentication,
+    ]
+
+    def get_queryset(self):
+
+        user = self.request.user
+
+        queryset = PayrollRecord.objects.select_related(
+            "employee",
+            "payroll_period",
+        )
+
+        # HR and Admin can view all payroll records
+        if _is_hr_or_admin(user):
+            return queryset
+
+        # Employees can view only their own payroll records
+        if user.role == User.Role.EMPLOYEE:
+            return queryset.filter(employee__user=user)
+
+        return queryset.none()
+
+
+class PayrollRecordDetailAPIView(generics.RetrieveAPIView):
+
+    serializer_class = PayrollRecordSerializer
+    permission_classes = [CanAccessPayroll]
 
     authentication_classes = [
         TokenAuthentication,
@@ -164,27 +159,10 @@ class PayrollRecordListAPIView(generics.ListAPIView):
         if _is_hr_or_admin(user):
             return queryset
 
-        raise DRFPermissionDenied(
-            "Employees cannot access the payroll records list."
-        )
+        if user.role == User.Role.EMPLOYEE:
+            return queryset.filter(employee__user=user)
 
-
-class PayrollRecordDetailAPIView(generics.RetrieveAPIView):
-
-    serializer_class = PayrollRecordSerializer
-    permission_classes = [PayrollAPIPermission]
-
-    authentication_classes = [
-        TokenAuthentication,
-        SessionAuthentication,
-    ]
-
-    def get_queryset(self):
-
-        return PayrollRecord.objects.select_related(
-            "employee",
-            "payroll_period",
-        )
+        return queryset.none()
 
 
 # --------------------------------------------------
@@ -194,7 +172,39 @@ class PayrollRecordDetailAPIView(generics.RetrieveAPIView):
 class PayslipListAPIView(generics.ListAPIView):
 
     serializer_class = PayslipSerializer
-    permission_classes = [PayrollAPIPermission]
+    permission_classes = [CanAccessPayroll]
+
+    authentication_classes = [
+        TokenAuthentication,
+        SessionAuthentication,
+    ]
+
+    def get_queryset(self):
+
+        user = self.request.user
+
+        queryset = Payslip.objects.select_related(
+            "payroll_record__employee",
+            "payroll_record__payroll_period",
+        )
+
+        # HR and Admin can view all payslips
+        if _is_hr_or_admin(user):
+            return queryset
+
+        # Employees can view only their own payslips
+        if user.role == User.Role.EMPLOYEE:
+            return queryset.filter(
+                payroll_record__employee__user=user
+            )
+
+        return queryset.none()
+
+
+class PayslipDetailAPIView(generics.RetrieveAPIView):
+
+    serializer_class = PayslipSerializer
+    permission_classes = [CanAccessPayroll]
 
     authentication_classes = [
         TokenAuthentication,
@@ -213,27 +223,12 @@ class PayslipListAPIView(generics.ListAPIView):
         if _is_hr_or_admin(user):
             return queryset
 
-        raise DRFPermissionDenied(
-            "Employees cannot access the payslips list."
-        )
+        if user.role == User.Role.EMPLOYEE:
+            return queryset.filter(
+                payroll_record__employee__user=user
+            )
 
-
-class PayslipDetailAPIView(generics.RetrieveAPIView):
-
-    serializer_class = PayslipSerializer
-    permission_classes = [PayrollAPIPermission]
-
-    authentication_classes = [
-        TokenAuthentication,
-        SessionAuthentication,
-    ]
-
-    def get_queryset(self):
-
-        return Payslip.objects.select_related(
-            "payroll_record__employee",
-            "payroll_record__payroll_period",
-        )
+        return queryset.none()
 
 
 # --------------------------------------------------
@@ -242,7 +237,7 @@ class PayslipDetailAPIView(generics.RetrieveAPIView):
 
 class PayslipDownloadAPIView(APIView):
 
-    permission_classes = [PayrollAPIPermission]
+    permission_classes = [CanAccessPayroll]
 
     authentication_classes = [
         TokenAuthentication,

@@ -9,7 +9,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.test import TestCase
-from rest_framework import status
+from rest_framework import response, status
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
@@ -137,11 +137,11 @@ class PayrollAccessPermissionTests(
             permission.has_permission(request, None)
         )
 
-    def test_employee_denied_general_permission(self):
+    def test_employee_has_general_permission(self):
         permission = CanAccessPayroll()
         request = type("Request", (), {"user": self.employee})()
 
-        self.assertFalse(
+        self.assertTrue(
             permission.has_permission(request, None)
         )
 
@@ -230,18 +230,19 @@ class PayrollAPIAccessTests(
         self.client = APIClient()
         self.create_test_data()
 
-    def test_employee_cannot_list_payroll_records(self):
-        self.client.force_authenticate(
-            user=self.employee
-        )
+    def test_employee_can_list_only_own_payroll_records(self):
+        self.client.force_authenticate(user=self.employee)
 
-        response = self.client.get(
-            self.PAYROLL_RECORDS_URL
-        )
+        response = self.client.get(self.PAYROLL_RECORDS_URL)
 
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        records = response.data
+
+        self.assertEqual(len(records), 1)
         self.assertEqual(
-            response.status_code,
-            status.HTTP_403_FORBIDDEN,
+            records[0]["id"],
+            self.payroll_record.pk
         )
 
     def test_employee_cannot_retrieve_other_payroll_record(self):
@@ -263,19 +264,19 @@ class PayrollAPIAccessTests(
             ],
         )
 
-    def test_employee_cannot_list_payslips(self):
-        self.client.force_authenticate(
-            user=self.employee
-        )
+    def test_employee_can_list_only_own_payslips(self):
+        self.client.force_authenticate(user=self.employee)
 
-        response = self.client.get(
-            self.PAYSLIPS_URL
-        )
+        response = self.client.get(self.PAYSLIPS_URL)
 
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        payslips = response.data
+        self.assertEqual(len(payslips), 1)
         self.assertEqual(
-            response.status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
+            payslips[0]["id"],
+            self.payslip.pk
+    )
 
     def test_employee_cannot_retrieve_other_payslip(self):
         self.client.force_authenticate(

@@ -62,39 +62,37 @@ class IsOwnerOrHR(permissions.BasePermission):
 
 class CanAccessPayroll(permissions.BasePermission):
     """
-    Allows HR and Admin to access payroll generally.
-    Employees can access only their own payroll objects
-    through object-level permission checks.
+    Allows HR and Admin to access all payroll data.
+    Employees can access only their own payroll records and payslips.
     """
 
-    message = 'Payroll access is restricted to HR and Admin users.'
+    message = "You do not have permission to access this payroll data."
 
     def has_permission(self, request, view):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.role in [User.Role.ADMIN, User.Role.HR]
+            and request.user.role in [
+                User.Role.ADMIN,
+                User.Role.HR,
+                User.Role.EMPLOYEE,
+            ]
         )
 
     def has_object_permission(self, request, view, obj):
-        # Admin and HR can access all payroll records
         if request.user.role in [User.Role.ADMIN, User.Role.HR]:
             return True
 
-        # Check Payslip ownership
-        if hasattr(obj, 'payroll_record'):
-            return obj.payroll_record.employee.user == request.user
+        if hasattr(obj, "payroll_record"):
+            return obj.payroll_record.employee.user_id == request.user.pk
 
-        # Check PayrollRecord ownership
-        if hasattr(obj, 'employee'):
-            return obj.employee.user == request.user
+        if hasattr(obj, "employee"):
+            return obj.employee.user_id == request.user.pk
 
-        # Check direct user ownership
-        if hasattr(obj, 'user'):
-            return obj.user == request.user
+        if hasattr(obj, "user"):
+            return obj.user_id == request.user.pk
 
         return False
-
 
 class IsSelfOrHR(permissions.BasePermission):
     """
@@ -111,7 +109,6 @@ class IsSelfOrHR(permissions.BasePermission):
         if request.user.role in [User.Role.ADMIN, User.Role.HR]:
             return True
 
-        # Check ownership through various relationships
         if hasattr(obj, 'user'):
             return obj.user == request.user
 
