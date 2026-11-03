@@ -9,6 +9,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.test import TestCase
+from django.core.files.base import ContentFile
 from rest_framework import response, status
 from rest_framework.test import APIClient
 
@@ -104,6 +105,13 @@ class PayrollTestDataMixin:
         self.payslip = Payslip.objects.create(
             payroll_record=self.payroll_record,
             payslip_number="PAY-2025-001",
+        )
+        self.payslip.pdf_file.save(
+            "test_payslip.pdf",
+            ContentFile(
+                b"%PDF-1.4\nSample payslip PDF content\n%%EOF"
+            ),
+            save=True,
         )
 
         self.payslip2 = Payslip.objects.create(
@@ -401,8 +409,7 @@ class PayrollAPIAccessTests(
                 msg=f"Unexpected response for {url}",
             )
 
-        # The test payslip has no generated PDF file.
-        # A 404 is therefore expected for the download.
+            # Verify that an admin can download an employee's payslip.
         download_url = self.PAYSLIP_DOWNLOAD_URL.format(
             pk=self.payslip.pk
         )
@@ -411,7 +418,7 @@ class PayrollAPIAccessTests(
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_404_NOT_FOUND,
+            status.HTTP_200_OK,
         )
 
     def test_employee_can_access_own_payroll_record(self):
@@ -457,10 +464,10 @@ class PayrollAPIAccessTests(
 
         response = self.client.get(url)
 
-        # No PDF has been generated for this test payslip.
+        # Verify that an employee can download their own payslip.
         self.assertEqual(
             response.status_code,
-            status.HTTP_404_NOT_FOUND,
+            status.HTTP_200_OK,
         )
 
     def test_unauthenticated_access_denied(self):
