@@ -130,3 +130,15 @@ class HRSimplePreview(RoleRequiredMixin, SimplePreview):
 
 class HRPayrollList(RoleRequiredMixin, PayrollListPreview):
     pass
+
+class ExportsPage(RoleRequiredMixin, SimplePreview):
+    template_name = "reports/exports.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["datasets"] = [
+            ("Employees", "employees"),
+            ("Attendance", "attendance"),
+            ("Leave requests", "leaves"),
+        ]
+        return ctx
