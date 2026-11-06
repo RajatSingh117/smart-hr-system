@@ -7,8 +7,7 @@ HR_ROLES = ("admin", "hr")
 
 
 def user_role(user):
-    return getattr(user, "role", None)
-
+    return str(getattr(user, "role", "") or "").lower()
 
 def is_hr_or_admin(user):
     return user.is_authenticated and (

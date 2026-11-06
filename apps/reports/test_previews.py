@@ -208,3 +208,145 @@ class RoleAccessTests(TestCase):
         self.client.force_login(self.emp)
         response = self.client.get(reverse("reports:preview_attendance_list"))
         self.assertEqual(response.context["page_obj"].paginator.count, 0)
+
+
+@override_settings(ROOT_URLCONF="apps.reports.test_urls")
+@patch("apps.reports.real_data.get_leaves", new=lambda: stubs.LEAVES)
+@patch("apps.reports.real_data.get_attendance", new=lambda: stubs.ATTENDANCE)
+@patch("apps.reports.real_data.get_employees", new=lambda: stubs.EMPLOYEES)
+class ExportTests(TestCase):
+    def setUp(self):
+        # Roles are stored in capitals in the real database.
+        self.hr = make_user("exporthr", "HR")
+        self.admin = make_user("exportadmin", "ADMIN")
+        self.emp = make_user("exportemp", "EMPLOYEE")
+
+    def test_anonymous_redirected(self):
+        response = self.client.get(reverse("reports:export_csv", args=["employees"]))
+        self.assertEqual(response.status_code, 302)
+
+    def test_employee_gets_403(self):
+        self.client.force_login(self.emp)
+        response = self.client.get(reverse("reports:export_csv", args=["employees"]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_hr_and_admin_with_capital_roles_can_download(self):
+        for user in (self.hr, self.admin):
+            self.client.force_login(user)
+            for dataset in ("employees", "attendance", "leaves"):
+                with self.subTest(user=user.role, dataset=dataset):
+                    response = self.client.get(reverse("reports:export_csv", args=[dataset]))
+                    self.assertEqual(response.status_code, 200)
+                    self.assertIn("text/csv", response["Content-Type"])
+                    self.assertIn(f"{dataset}.csv", response["Content-Disposition"])
+
+    def test_csv_has_header_and_rows(self):
+        self.client.force_login(self.hr)
+        response = self.client.get(reverse("reports:export_csv", args=["employees"]))
+        lines = response.content.decode("utf-8-sig").strip().splitlines()
+        self.assertEqual(lines[0], "Name,Email,Department,Designation,Join date,Status")
+        self.assertEqual(len(lines) - 1, len(stubs.EMPLOYEES))
+
+    def test_unknown_dataset_gives_404(self):
+        self.client.force_login(self.hr)
+        response = self.client.get(reverse("reports:export_csv", args=["payslips"]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_formula_cells_are_neutralised(self):
+        from .export_views import safe_cell
+
+        self.assertEqual(safe_cell("=SUM(A1)"), "'=SUM(A1)")
+        self.assertEqual(safe_cell("@cmd"), "'@cmd")
+        self.assertEqual(safe_cell("Priya"), "Priya")
+        self.assertEqual(safe_cell(None), "")
+
+    def test_excel_download_has_header_and_rows(self):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        self.client.force_login(self.hr)
+        response = self.client.get(reverse("reports:export_excel", args=["employees"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response["Content-Type"])
+        sheet = load_workbook(BytesIO(response.content)).active
+        header = [cell.value for cell in sheet[1]]
+        self.assertEqual(header, ["Name", "Email", "Department", "Designation", "Join date", "Status"])
+        self.assertEqual(sheet.max_row - 1, len(stubs.EMPLOYEES))
+
+    def test_pdf_download_is_a_pdf(self):
+        self.client.force_login(self.admin)
+        for dataset in ("employees", "attendance", "leaves"):
+            with self.subTest(dataset=dataset):
+                response = self.client.get(reverse("reports:export_pdf", args=[dataset]))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response["Content-Type"], "application/pdf")
+                self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_excel_and_pdf_blocked_for_employee_and_anonymous(self):
+        for name in ("reports:export_excel", "reports:export_pdf"):
+            url = reverse(name, args=["employees"])
+            with self.subTest(name=name, who="anonymous"):
+                self.assertEqual(self.client.get(url).status_code, 302)
+            self.client.force_login(self.emp)
+            with self.subTest(name=name, who="employee"):
+                self.assertEqual(self.client.get(url).status_code, 403)
+            self.client.logout()
+
+    def test_charts_page_blocked_for_employee_and_anonymous(self):
+        url = reverse("reports:charts")
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(self.emp)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_charts_page_builds_chart_data(self):
+        employees = [
+            {"department": "IT"},
+            {"department": "IT"},
+            {"department": "HR"},
+            {"department": ""},
+        ]
+        attendance = [
+            {"date": "2026-10-01", "status": "Present"},
+            {"date": "2026-10-02", "status": "Present"},
+            {"date": "2026-10-03", "status": "Absent"},
+            {"date": "2026-11-01", "status": "Present"},
+        ]
+        leaves = [{"status": "approved"}, {"status": "pending"}, {"status": "approved"}]
+        self.client.force_login(self.hr)
+        with patch("apps.reports.real_data.get_employees", return_value=employees), patch(
+            "apps.reports.real_data.get_attendance", return_value=attendance
+        ), patch("apps.reports.real_data.get_leaves", return_value=leaves):
+            response = self.client.get(reverse("reports:charts"))
+        self.assertEqual(response.status_code, 200)
+        data = response.context["chart_data"]
+        self.assertEqual(data["departments"]["labels"], ["HR", "IT", "No department"])
+        self.assertEqual(data["departments"]["values"], [1, 2, 1])
+        self.assertEqual(data["attendance"]["labels"], ["2026-10", "2026-11"])
+        self.assertEqual(data["attendance"]["values"], [2, 1])
+        self.assertEqual(data["leaves"]["labels"], ["Approved", "Pending"])
+        self.assertEqual(data["leaves"]["values"], [2, 1])
+
+    def test_charts_page_works_with_no_data(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("reports:charts"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_pages_use_few_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self.client.force_login(self.hr)
+        pages = [
+            reverse("reports:charts"),
+            reverse("reports:exports"),
+            reverse("reports:export_csv", args=["employees"]),
+            reverse("reports:export_csv", args=["attendance"]),
+            reverse("reports:export_csv", args=["leaves"]),
+        ]
+        for url in pages:
+            with self.subTest(url=url):
+                with CaptureQueriesContext(connection) as ctx:
+                    response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertLessEqual(len(ctx), 12, f"{url} ran {len(ctx)} queries")

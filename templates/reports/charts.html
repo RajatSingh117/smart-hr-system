@@ -1,0 +1,53 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}Charts{% endblock %}
+{% block page_heading %}Charts{% endblock %}
+
+{% block dashboard_body %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card"><div class="card-body">
+      <h6 class="card-title">Employees by department</h6>
+      <canvas id="chartDepartments" height="220"></canvas>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card"><div class="card-body">
+      <h6 class="card-title">Leave requests by status</h6>
+      <canvas id="chartLeaves" height="220"></canvas>
+    </div></div>
+  </div>
+  <div class="col-12">
+    <div class="card"><div class="card-body">
+      <h6 class="card-title">Present days per month</h6>
+      <canvas id="chartAttendance" height="110"></canvas>
+    </div></div>
+  </div>
+</div>
+
+{{ chart_data|json_script:"chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const data = JSON.parse(document.getElementById("chart-data").textContent);
+  const colors = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948"];
+
+  new Chart(document.getElementById("chartDepartments"), {
+    type: "bar",
+    data: { labels: data.departments.labels,
+            datasets: [{ label: "Employees", data: data.departments.values, backgroundColor: colors[0] }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  new Chart(document.getElementById("chartLeaves"), {
+    type: "doughnut",
+    data: { labels: data.leaves.labels,
+            datasets: [{ data: data.leaves.values, backgroundColor: colors }] }
+  });
+
+  new Chart(document.getElementById("chartAttendance"), {
+    type: "line",
+    data: { labels: data.attendance.labels,
+            datasets: [{ label: "Present", data: data.attendance.values, borderColor: colors[2], tension: 0.3 }] },
+    options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+</script>
+{% endblock %}
