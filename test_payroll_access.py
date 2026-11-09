@@ -342,6 +342,35 @@ class PayrollAPIAccessTests(TestCase):
         self.assertTrue(content.startswith(b"%PDF-"))
         self.assertIn(b"Test PDF", content)
 
+    def test_employee_can_retrieve_own_notification(self):
+        """Employee can retrieve their own notification → 200."""
+        self.client.force_authenticate(self.employee)
+        # Create notification for this employee
+        from apps.payroll.models import NotificationLog
+        notification = NotificationLog.objects.create(
+            recipient="emp@hrms.com",
+            notification_type=NotificationLog.NotificationType.PAYSLIP_READY,
+            subject="Payslip Ready",
+            status=NotificationLog.Status.SENT,
+        )
+        response = self.client.get(f"/api/payroll/notifications/{notification.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["recipient"], "emp@hrms.com")
+
+    def test_employee_cannot_retrieve_other_notification(self):
+        """Employee cannot retrieve another employee's notification → 404."""
+        self.client.force_authenticate(self.employee)
+        # Create notification for another employee
+        from apps.payroll.models import NotificationLog
+        notification = NotificationLog.objects.create(
+            recipient="emp2@hrms.com",
+            notification_type=NotificationLog.NotificationType.LEAVE_DECISION,
+            subject="Leave Approved",
+            status=NotificationLog.Status.SENT,
+        )
+        response = self.client.get(f"/api/payroll/notifications/{notification.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_unauthenticated_access_denied(self):
         """Unauthenticated users cannot access payroll endpoints."""
         for url in [
