@@ -1,0 +1,49 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}Leave request{% endblock %}
+{% block page_heading %}Leave request #{{ leave.id }}{% endblock %}
+
+{% block dashboard_body %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-2">
+      <strong>{{ leave.employee }}</strong>
+      {% include "partials/_status_badge.html" with status=leave.status %}
+    </div>
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Type</dt><dd class="col-sm-9">{{ leave.leave_type }}</dd>
+      <dt class="col-sm-3">Dates</dt><dd class="col-sm-9">{{ leave.start }} to {{ leave.end }} ({{ leave.days }} day{{ leave.days|pluralize }})</dd>
+      <dt class="col-sm-3">Reason</dt><dd class="col-sm-9">{{ leave.reason }}</dd>
+      <dt class="col-sm-3">Applied on</dt><dd class="col-sm-9">{{ leave.applied_on }}</dd>
+    </dl>
+  </div>
+</div>
+
+{% if can_decide and leave.status == "Pending" %}
+<div class="card mb-3">
+  <div class="card-header">Decision</div>
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form_field.html" with label="Remarks (required to reject)" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
+      <button name="action" value="approve" class="btn btn-success">Approve</button>
+      <button name="action" value="reject" class="btn btn-danger">Reject</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">Status history</div>
+  <ul class="list-group list-group-flush">
+    {% for h in leave.history %}
+      <li class="list-group-item">
+        {% include "partials/_status_badge.html" with status=h.status %}
+        <span class="ms-2">{{ h.by }} · {{ h.on }}</span>
+        {% if h.remarks %}<div class="text-muted small mt-1">{{ h.remarks }}</div>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<a href="{% url 'reports:preview_leave_list' %}" class="btn btn-link mt-3">&larr; Back to leave</a>
+{% endblock %}

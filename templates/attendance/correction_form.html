@@ -1,0 +1,22 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}Correct attendance{% endblock %}
+{% block page_heading %}Correct attendance record{% endblock %}
+
+{% block dashboard_body %}
+<div class="alert alert-info" style="max-width: 640px;">
+  Only HR and Admin can correct attendance. Every correction is written to the audit log.
+</div>
+<div class="card" style="max-width: 640px;">
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form_field.html" with label="Employee" name="employee" type="select" options=people value=values.employee error=errors.employee required=True %}
+      {% include "partials/_form_field.html" with label="Date" name="date" type="date" value=values.date error=errors.date required=True %}
+      {% include "partials/_form_field.html" with label="Correct status" name="status" type="select" options=statuses value=values.status error=errors.status required=True %}
+      {% include "partials/_form_field.html" with label="Reason for correction" name="reason" type="textarea" value=values.reason error=errors.reason required=True %}
+      <button type="submit" class="btn btn-primary">Submit correction</button>
+      <a href="{% url 'reports:preview_attendance_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

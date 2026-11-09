@@ -1,0 +1,12 @@
+{# Usage: {% include "partials/_status_badge.html" with status=row.status %} #}
+{% if status == "Present" or status == "Approved" or status == "Active" %}
+  <span class="badge bg-success">{{ status }}</span>
+{% elif status == "Absent" or status == "Rejected" or status == "Terminated" %}
+  <span class="badge bg-danger">{{ status }}</span>
+{% elif status == "Late" or status == "Pending" or status == "On Leave" or status == "On-leave" %}
+  <span class="badge bg-warning text-dark">{{ status }}</span>
+{% elif status == "Half-day" %}
+  <span class="badge bg-info text-dark">{{ status }}</span>
+{% else %}
+  <span class="badge bg-secondary">{{ status }}</span>
+{% endif %}

@@ -1,0 +1,37 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% block dashboard_title %}{{ employee.name }}{% endblock %}
+{% block page_heading %}{{ employee.name }}{% endblock %}
+
+{% block dashboard_body %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <div class="text-muted">{{ employee.employee_id }} · {{ employee.job_title }}</div>
+        <div class="mt-1">{% include "partials/_status_badge.html" with status=employee.status %}</div>
+      </div>
+      <a href="{% url 'reports:preview_employee_edit' employee.id %}" class="btn btn-outline-primary btn-sm">Edit</a>
+    </div>
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Email</dt><dd class="col-sm-9">{{ employee.email }}</dd>
+      <dt class="col-sm-3">Phone</dt><dd class="col-sm-9">{{ employee.phone }}</dd>
+      <dt class="col-sm-3">Department</dt><dd class="col-sm-9">{{ employee.department }}</dd>
+      <dt class="col-sm-3">Joining date</dt><dd class="col-sm-9">{{ employee.joining_date }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-1">
+      <span>Profile completeness</span><strong>{{ employee.completeness }}%</strong>
+    </div>
+    <div class="progress" role="progressbar" aria-valuenow="{{ employee.completeness }}" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-bar {% if employee.completeness < 70 %}bg-warning{% else %}bg-success{% endif %}"
+           style="width: {{ employee.completeness }}%"></div>
+    </div>
+  </div>
+</div>
+
+<a href="{% url 'reports:preview_employee_list' %}" class="btn btn-link mt-3">&larr; Back to employees</a>
+{% endblock %}

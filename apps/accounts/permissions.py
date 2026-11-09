@@ -23,7 +23,6 @@ class IsHR(permissions.BasePermission):
     """
 
     message = 'Only HR or Admin users can access this resource.'
-
     def has_permission(self, request, view):
         return (
             request.user
@@ -49,43 +48,51 @@ class IsOwnerOrHR(permissions.BasePermission):
             return True
 
         # Employee can only access their own records
-        # Check if obj is a User or has a user/employee field
         if hasattr(obj, 'user'):
             return obj.user == request.user
+
         if hasattr(obj, 'employee'):
             return obj.employee.user == request.user
+
         if isinstance(obj, User):
             return obj == request.user
+
         return False
 
 
 class CanAccessPayroll(permissions.BasePermission):
     """
-    Allows access to payroll data for Admin and HR only.
-    Reusable for M5 payroll views.
+    Allows HR and Admin to access all payroll data.
+    Employees can access only their own payroll records and payslips.
     """
 
-    message = 'Payroll access is restricted to HR and Admin users.'
+    message = "You do not have permission to access this payroll data."
 
     def has_permission(self, request, view):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.role in [User.Role.ADMIN, User.Role.HR]
+            and request.user.role in [
+                User.Role.ADMIN,
+                User.Role.HR,
+                User.Role.EMPLOYEE,
+            ]
         )
 
     def has_object_permission(self, request, view, obj):
-        # Admin and HR can access all payroll records
         if request.user.role in [User.Role.ADMIN, User.Role.HR]:
             return True
 
-        # Employee can only access their own payroll
-        if hasattr(obj, 'employee'):
-            return obj.employee.user == request.user
-        if hasattr(obj, 'user'):
-            return obj.user == request.user
-        return False
+        if hasattr(obj, "payroll_record"):
+            return obj.payroll_record.employee.user_id == request.user.pk
 
+        if hasattr(obj, "employee"):
+            return obj.employee.user_id == request.user.pk
+
+        if hasattr(obj, "user"):
+            return obj.user_id == request.user.pk
+
+        return False
 
 class IsSelfOrHR(permissions.BasePermission):
     """
@@ -102,11 +109,13 @@ class IsSelfOrHR(permissions.BasePermission):
         if request.user.role in [User.Role.ADMIN, User.Role.HR]:
             return True
 
-        # Check ownership through various relationships
         if hasattr(obj, 'user'):
             return obj.user == request.user
+
         if hasattr(obj, 'employee'):
             return obj.employee.user == request.user
+
         if isinstance(obj, User):
             return obj == request.user
+
         return False

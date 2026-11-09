@@ -1,0 +1,18 @@
+{# Needs `page_obj` and `querystring` (the current filters without page=). #}
+{% if page_obj.paginator.num_pages > 1 %}
+<nav aria-label="Pagination" class="mt-3">
+  <ul class="pagination justify-content-center mb-0">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="{% if page_obj.has_previous %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}{% else %}#{% endif %}">Previous</a>
+    </li>
+    {% for n in page_obj.paginator.page_range %}
+      <li class="page-item {% if n == page_obj.number %}active{% endif %}">
+        <a class="page-link" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ n }}">{{ n }}</a>
+      </li>
+    {% endfor %}
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="{% if page_obj.has_next %}?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}{% else %}#{% endif %}">Next</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
