@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -95,6 +96,19 @@ class PayrollAPITestBase(TestCase):
             payroll_record=self.record2,
             payslip_number="PS-202601-EMP002",
             status=Payslip.Status.GENERATED,
+        )
+
+        # Attach a sample PDF to self.payslip for download testing
+        # Minimal valid PDF content (1-page PDF with "Test" text)
+        sample_pdf_content = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n/Resources <<\n/Font <<\n/F1 5 0 R\n>>\n>>\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT /F1 12 Tf 100 700 Td (Test PDF) Tj ET\nendstream\nendobj\n5 0 obj\n<<\n/Type /Font\n/Subtype /Type1\n/BaseFont /Helvetica\n>>\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000117 00000 n \n0000000211 00000 n \n0000000301 00000 n \ntrailer\n<<\n/Size 6\n/Root 1 0 R\n>>\nstartxref\n380\n%%EOF"
+        self.payslip.pdf_file.save(
+            f"{self.payslip.payslip_number}.pdf",
+            SimpleUploadedFile(
+                f"{self.payslip.payslip_number}.pdf",
+                sample_pdf_content,
+                content_type="application/pdf",
+            ),
+            save=True,
         )
 
 
@@ -271,14 +285,17 @@ class PayslipAPITests(PayrollAPITestBase):
 
     def test_payslip_download_own(self):
         self.client.force_authenticate(self.employee_user)
-        # Generate PDF for the payslip first
-        from apps.payroll.pdf_services import generate_payslip_pdf
-        generate_payslip_pdf(self.record)
-        self.payslip.refresh_from_db()
+        # PDF is already attached in setUp
 
         response = self.client.get(f"/api/payroll/payslips/{self.payslip.pk}/download/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        # Verify PDF content - check for PDF header
+        # FileResponse uses streaming_content
+        content = b"".join(response.streaming_content)
+        self.assertTrue(content.startswith(b"%PDF-"))
+        # Verify it's our sample PDF
+        self.assertIn(b"Test PDF", content)
 
     def test_payslip_download_other_forbidden(self):
         self.client.force_authenticate(self.employee_user)
