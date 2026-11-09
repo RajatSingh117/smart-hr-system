@@ -113,3 +113,44 @@ def get_monthly_attendance_trend(months=6, today=None):
         row.update({"year": year, "month": month, "label": f"{year}-{month:02d}"})
         trend.append(row)
     return trend
+
+def get_monthly_attendance_by_employee(year, month, employee=None):
+    """One row per employee with attendance counts for one month.
+
+    Used by the monthly summary page. Counts stored records only, and only
+    employees with at least one record in the month get a row. Pass
+    `employee` to limit the result to that single employee (employees see
+    only their own numbers).
+    """
+    if not 1 <= month <= 12:
+        raise ValidationError("Month must be between 1 and 12.")
+
+    first_day = date(year, month, 1)
+    last_day = date(year, month, calendar.monthrange(year, month)[1])
+
+    records = Attendance.objects.filter(date__range=(first_day, last_day))
+    if employee is not None:
+        records = records.filter(employee=employee)
+
+    rows = {}
+    counts = (
+        records.values("employee_id", "employee__full_name", "employee__employee_id", "status")
+        .annotate(total=Count("id"))
+        .order_by("employee__full_name", "employee_id")
+    )
+    for item in counts:
+        row = rows.get(item["employee_id"])
+        if row is None:
+            row = {status: 0 for status in Attendance.Status.values}
+            row.update(
+                {
+                    "employee_pk": item["employee_id"],
+                    "employee": item["employee__full_name"],
+                    "employee_code": item["employee__employee_id"],
+                    "total_records": 0,
+                }
+            )
+            rows[item["employee_id"]] = row
+        row[item["status"]] = item["total"]
+        row["total_records"] += item["total"]
+    return list(rows.values())
