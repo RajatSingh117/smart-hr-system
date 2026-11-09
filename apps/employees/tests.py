@@ -1888,3 +1888,445 @@ class EmployeeViewAndSecurityExtendedTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Base Salary')
         self.assertContains(response, '95000.00')
+
+
+# ==============================================================================
+# Week 4: Dashboard Aggregation Queries, Analytics & Edge-Case Tests
+# ==============================================================================
+
+from apps.employees.queries import (
+    get_total_headcount,
+    get_active_headcount,
+    get_headcount_summary,
+    get_department_employee_counts,
+    get_employees_grouped_by_department,
+    get_status_distribution,
+    get_job_title_distribution,
+    get_dashboard_analytics,
+)
+from apps.employees.views import employee_analytics_api
+
+
+class EmployeeDashboardQueriesTests(TestCase):
+    """
+    Tests for Week 4 reusable dashboard aggregation queries and analytics utilities.
+    Verifies total headcount, active headcount, department distributions, status distributions,
+    and Chart.js data generation against actual database records.
+    """
+
+    def setUp(self):
+        self.dept_eng = Department.objects.create(name="Engineering", description="Tech team")
+        self.dept_hr = Department.objects.create(name="Human Resources", description="HR team")
+        self.dept_sales = Department.objects.create(name="Sales", description="Sales team")
+
+        self.job_dev = JobTitle.objects.create(title="Software Engineer")
+        self.job_mgr = JobTitle.objects.create(title="Engineering Manager")
+        self.job_rec = JobTitle.objects.create(title="Recruiter")
+
+        # 3 Active Engineering employees
+        self.emp1 = Employee.objects.create(
+            employee_id="EMP-W4-01",
+            full_name="Alice Smith",
+            email="alice.smith@example.com",
+            joining_date=date(2025, 1, 10),
+            department=self.dept_eng,
+            job_title=self.job_mgr,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal("120000.00"),
+        )
+        self.dept_eng.department_head = self.emp1
+        self.dept_eng.save()
+
+        self.emp2 = Employee.objects.create(
+            employee_id="EMP-W4-02",
+            full_name="Bob Jones",
+            email="bob.jones@example.com",
+            joining_date=date(2025, 3, 15),
+            department=self.dept_eng,
+            job_title=self.job_dev,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal("95000.00"),
+        )
+        self.emp3 = Employee.objects.create(
+            employee_id="EMP-W4-03",
+            full_name="Charlie Brown",
+            email="charlie.brown@example.com",
+            joining_date=date(2025, 6, 1),
+            department=self.dept_eng,
+            job_title=self.job_dev,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal("90000.00"),
+        )
+
+        # 1 On-Leave HR employee
+        self.emp4 = Employee.objects.create(
+            employee_id="EMP-W4-04",
+            full_name="Diana Prince",
+            email="diana.prince@example.com",
+            joining_date=date(2024, 11, 1),
+            department=self.dept_hr,
+            job_title=self.job_rec,
+            employment_status=Employee.EmploymentStatus.ON_LEAVE,
+            base_salary=Decimal("75000.00"),
+        )
+
+        # 1 Terminated employee in Sales
+        self.emp5 = Employee.objects.create(
+            employee_id="EMP-W4-05",
+            full_name="Evan Wright",
+            email="evan.wright@example.com",
+            joining_date=date(2024, 5, 20),
+            department=self.dept_sales,
+            employment_status=Employee.EmploymentStatus.TERMINATED,
+            base_salary=Decimal("60000.00"),
+        )
+
+    def test_get_total_headcount(self):
+        """get_total_headcount returns total count of all employee records."""
+        self.assertEqual(get_total_headcount(), 5)
+
+    def test_get_active_headcount(self):
+        """get_active_headcount returns count of currently ACTIVE employees only."""
+        self.assertEqual(get_active_headcount(), 3)
+
+    def test_get_headcount_summary(self):
+        """get_headcount_summary returns dictionary with exact counts for all statuses and total."""
+        summary = get_headcount_summary()
+        self.assertEqual(summary['total'], 5)
+        self.assertEqual(summary['active'], 3)
+        self.assertEqual(summary['on_leave'], 1)
+        self.assertEqual(summary['terminated'], 1)
+
+    def test_get_department_employee_counts_all(self):
+        """get_department_employee_counts accurately calculates total and active headcounts and salaries."""
+        counts = get_department_employee_counts(active_only=False, include_empty=True)
+        counts_by_name = {d['name']: d for d in counts}
+
+        self.assertIn("Engineering", counts_by_name)
+        eng = counts_by_name["Engineering"]
+        self.assertEqual(eng['total_count'], 3)
+        self.assertEqual(eng['active_count'], 3)
+        self.assertEqual(eng['total_salary'], Decimal("305000.00"))
+        self.assertEqual(eng['department_head'], "Alice Smith")
+
+        self.assertIn("Human Resources", counts_by_name)
+        hr = counts_by_name["Human Resources"]
+        self.assertEqual(hr['total_count'], 1)
+        self.assertEqual(hr['active_count'], 0)
+        self.assertEqual(hr['total_salary'], Decimal("0.00"))
+
+        self.assertIn("Sales", counts_by_name)
+        sales = counts_by_name["Sales"]
+        self.assertEqual(sales['total_count'], 1)
+        self.assertEqual(sales['active_count'], 0)
+        self.assertEqual(sales['total_salary'], Decimal("0.00"))
+
+    def test_get_department_employee_counts_active_only(self):
+        """When active_only=True, count reflects active employees only."""
+        counts = get_department_employee_counts(active_only=True, include_empty=True)
+        counts_by_name = {d['name']: d for d in counts}
+
+        self.assertEqual(counts_by_name["Engineering"]['count'], 3)
+        self.assertEqual(counts_by_name["Human Resources"]['count'], 0)
+        self.assertEqual(counts_by_name["Sales"]['count'], 0)
+
+    def test_get_department_employee_counts_exclude_empty(self):
+        """When include_empty=False with active_only=True, departments with 0 active employees are omitted."""
+        counts = get_department_employee_counts(active_only=True, include_empty=False)
+        names = [d['name'] for d in counts]
+        self.assertIn("Engineering", names)
+        self.assertNotIn("Human Resources", names)
+        self.assertNotIn("Sales", names)
+
+    def test_get_employees_grouped_by_department(self):
+        """get_employees_grouped_by_department groups employee profiles under department names."""
+        grouped = get_employees_grouped_by_department()
+        self.assertIn("Engineering", grouped)
+        self.assertEqual(len(grouped["Engineering"]), 3)
+        eng_names = [e['full_name'] for e in grouped["Engineering"]]
+        self.assertIn("Alice Smith", eng_names)
+        self.assertIn("Bob Jones", eng_names)
+        self.assertIn("Charlie Brown", eng_names)
+
+        self.assertIn("Human Resources", grouped)
+        self.assertEqual(len(grouped["Human Resources"]), 1)
+        self.assertEqual(grouped["Human Resources"][0]['full_name'], "Diana Prince")
+
+        self.assertIn("Sales", grouped)
+        self.assertEqual(len(grouped["Sales"]), 1)
+        self.assertEqual(grouped["Sales"][0]['full_name'], "Evan Wright")
+
+    def test_get_status_distribution(self):
+        """get_status_distribution maps all three employment statuses to accurate counts."""
+        dist = get_status_distribution()
+        self.assertEqual(dist['ACTIVE'], 3)
+        self.assertEqual(dist['ON_LEAVE'], 1)
+        self.assertEqual(dist['TERMINATED'], 1)
+
+    def test_get_job_title_distribution(self):
+        """get_job_title_distribution groups employee counts by JobTitle."""
+        dist = get_job_title_distribution(active_only=False, include_empty=True)
+        dist_by_title = {j['title']: j for j in dist}
+
+        self.assertIn("Software Engineer", dist_by_title)
+        self.assertEqual(dist_by_title["Software Engineer"]['total_count'], 2)
+
+        self.assertIn("Engineering Manager", dist_by_title)
+        self.assertEqual(dist_by_title["Engineering Manager"]['total_count'], 1)
+
+        self.assertIn("Recruiter", dist_by_title)
+        self.assertEqual(dist_by_title["Recruiter"]['total_count'], 1)
+
+        # Sales employee emp5 has no job title -> reported as Unassigned
+        self.assertIn("Unassigned", dist_by_title)
+        self.assertEqual(dist_by_title["Unassigned"]['total_count'], 1)
+
+    def test_get_dashboard_analytics_structure(self):
+        """get_dashboard_analytics returns structured summary and Chart.js datasets."""
+        analytics = get_dashboard_analytics()
+        self.assertIn('headcount', analytics)
+        self.assertIn('department_distribution', analytics)
+        self.assertIn('status_distribution', analytics)
+        self.assertIn('job_title_distribution', analytics)
+        self.assertIn('charts', analytics)
+
+        charts = analytics['charts']
+        self.assertIn('departments', charts)
+        self.assertIn('labels', charts['departments'])
+        self.assertIn('data', charts['departments'])
+        self.assertIn('status', charts)
+        self.assertEqual(charts['status']['labels'], ['Active', 'On Leave', 'Terminated'])
+        self.assertEqual(charts['status']['data'], [3, 1, 1])
+
+
+class EmployeeAnalyticsEdgeCaseTests(TestCase):
+    """
+    Tests edge cases for Week 4 analytics queries:
+    - Zero employees in system (empty database)
+    - Zero departments in system
+    - Empty departments with 0 employees
+    - Employees with unassigned department (department=None)
+    - Employees with unassigned job title (job_title=None)
+    - Inactive departments filtering
+    - Real-time updates on status transition, department transfer, and employee deletion
+    """
+
+    def test_empty_database_analytics(self):
+        """With zero records in database, analytics return 0s and empty lists without error."""
+        self.assertEqual(get_total_headcount(), 0)
+        self.assertEqual(get_active_headcount(), 0)
+        self.assertEqual(
+            get_headcount_summary(),
+            {'total': 0, 'active': 0, 'on_leave': 0, 'terminated': 0}
+        )
+        self.assertEqual(get_department_employee_counts(), [])
+        self.assertEqual(get_employees_grouped_by_department(), {})
+        self.assertEqual(
+            get_status_distribution(),
+            {'ACTIVE': 0, 'ON_LEAVE': 0, 'TERMINATED': 0}
+        )
+        self.assertEqual(get_job_title_distribution(), [])
+
+        analytics = get_dashboard_analytics()
+        self.assertEqual(analytics['headcount']['total'], 0)
+        self.assertEqual(analytics['charts']['departments']['labels'], [])
+        self.assertEqual(analytics['charts']['departments']['data'], [])
+        self.assertEqual(analytics['charts']['status']['data'], [0, 0, 0])
+
+    def test_empty_departments_handled_gracefully(self):
+        """Departments with no employees are reported with count 0 and total salary 0.00."""
+        dept = Department.objects.create(name="Empty Department")
+        counts = get_department_employee_counts(include_empty=True)
+        self.assertEqual(len(counts), 1)
+        self.assertEqual(counts[0]['name'], "Empty Department")
+        self.assertEqual(counts[0]['count'], 0)
+        self.assertEqual(counts[0]['total_salary'], Decimal("0.00"))
+
+        grouped = get_employees_grouped_by_department()
+        self.assertIn("Empty Department", grouped)
+        self.assertEqual(grouped["Empty Department"], [])
+
+    def test_unassigned_department_employee_grouped_under_unassigned(self):
+        """Employees without a department are captured under the 'Unassigned' category."""
+        Employee.objects.create(
+            employee_id="EMP-NO-DEPT",
+            full_name="Unassigned Person",
+            email="nodept@example.com",
+            joining_date=date(2026, 1, 1),
+            department=None,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal("50000.00"),
+        )
+        counts = get_department_employee_counts()
+        names = [d['name'] for d in counts]
+        self.assertIn("Unassigned", names)
+        unassigned_entry = next(d for d in counts if d['name'] == "Unassigned")
+        self.assertIsNone(unassigned_entry['id'])
+        self.assertEqual(unassigned_entry['total_count'], 1)
+        self.assertEqual(unassigned_entry['active_count'], 1)
+        self.assertEqual(unassigned_entry['total_salary'], Decimal("50000.00"))
+
+        grouped = get_employees_grouped_by_department()
+        self.assertIn("Unassigned", grouped)
+        self.assertEqual(len(grouped["Unassigned"]), 1)
+        self.assertEqual(grouped["Unassigned"][0]["full_name"], "Unassigned Person")
+
+    def test_inactive_department_filtering(self):
+        """Inactive departments can be filtered out via active_departments_only parameter."""
+        Department.objects.create(name="Active Dept", is_active=True)
+        Department.objects.create(name="Archived Dept", is_active=False)
+
+        all_counts = get_department_employee_counts(active_departments_only=False)
+        self.assertEqual(len(all_counts), 2)
+
+        active_counts = get_department_employee_counts(active_departments_only=True)
+        self.assertEqual(len(active_counts), 1)
+        self.assertEqual(active_counts[0]['name'], "Active Dept")
+
+    def test_employee_transfer_dynamically_updates_counts(self):
+        """Transferring an employee between departments immediately updates aggregations."""
+        dept_a = Department.objects.create(name="Dept Alpha")
+        dept_b = Department.objects.create(name="Dept Beta")
+
+        emp = Employee.objects.create(
+            employee_id="EMP-TRANSFER",
+            full_name="Transfer Worker",
+            email="transfer@example.com",
+            joining_date=date(2026, 2, 1),
+            department=dept_a,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal("80000.00"),
+        )
+
+        counts = {d['name']: d for d in get_department_employee_counts()}
+        self.assertEqual(counts["Dept Alpha"]['active_count'], 1)
+        self.assertEqual(counts["Dept Beta"]['active_count'], 0)
+
+        # Transfer to Dept Beta
+        emp.department = dept_b
+        emp.save()
+
+        updated_counts = {d['name']: d for d in get_department_employee_counts()}
+        self.assertEqual(updated_counts["Dept Alpha"]['active_count'], 0)
+        self.assertEqual(updated_counts["Dept Beta"]['active_count'], 1)
+
+    def test_employee_status_change_updates_headcount_and_salary_in_real_time(self):
+        """Changing an employee status updates active count and department total salary."""
+        dept = Department.objects.create(name="Operations")
+        emp = Employee.objects.create(
+            employee_id="EMP-STATUS-CHG",
+            full_name="Status Changer",
+            email="statuschg@example.com",
+            joining_date=date(2026, 1, 1),
+            department=dept,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal("70000.00"),
+        )
+
+        self.assertEqual(get_active_headcount(), 1)
+        dept_data = get_department_employee_counts()[0]
+        self.assertEqual(dept_data['active_count'], 1)
+        self.assertEqual(dept_data['total_salary'], Decimal("70000.00"))
+
+        # Transition to TERMINATED
+        emp.employment_status = Employee.EmploymentStatus.TERMINATED
+        emp.save()
+
+        self.assertEqual(get_active_headcount(), 0)
+        self.assertEqual(get_total_headcount(), 1)
+        updated_dept = get_department_employee_counts()[0]
+        self.assertEqual(updated_dept['active_count'], 0)
+        self.assertEqual(updated_dept['total_count'], 1)
+        self.assertEqual(updated_dept['total_salary'], Decimal("0.00"))
+
+
+class EmployeeAnalyticsApiSecurityTests(TestCase):
+    """
+    Tests role-based access control and method restrictions on the employee analytics API endpoint.
+    Verifies:
+    - Anonymous requests are redirected to login.
+    - Employee-role accounts receive HTTP 403 Forbidden.
+    - Admin and HR roles receive HTTP 200 with valid JSON analytics data.
+    - Non-GET HTTP methods return HTTP 405 Method Not Allowed.
+    """
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.admin_user = User.objects.create_user(
+            email="analytics.admin@hrms.com",
+            password="AdminPassword123!",
+            role=User.Role.ADMIN,
+        )
+        self.hr_user = User.objects.create_user(
+            email="analytics.hr@hrms.com",
+            password="HRPassword123!",
+            role=User.Role.HR,
+        )
+        self.emp_user = User.objects.create_user(
+            email="analytics.emp@hrms.com",
+            password="EmpPassword123!",
+            role=User.Role.EMPLOYEE,
+        )
+
+        self.dept = Department.objects.create(name="Analytics Testing")
+        self.emp = Employee.objects.create(
+            employee_id="EMP-API-01",
+            full_name="API Subject",
+            email="apisubject@example.com",
+            joining_date=date(2026, 1, 1),
+            department=self.dept,
+            employment_status=Employee.EmploymentStatus.ACTIVE,
+            base_salary=Decimal("65000.00"),
+        )
+
+    def test_anonymous_user_redirected_to_login(self):
+        """Anonymous access to /employees/api/analytics/ redirects to login."""
+        url = reverse('employees:analytics_api')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_employee_role_access_denied_with_403(self):
+        """Employee-role user receives HTTP 403 Forbidden when requesting analytics API."""
+        self.client.force_login(self.emp_user)
+        url = reverse('employees:analytics_api')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_hr_role_access_granted_with_json_data(self):
+        """HR-role user receives HTTP 200 and valid JSON data from analytics API."""
+        self.client.force_login(self.hr_user)
+        url = reverse('employees:analytics_api')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        data = response.json()
+        self.assertIn('headcount', data)
+        self.assertEqual(data['headcount']['total'], 1)
+        self.assertEqual(data['headcount']['active'], 1)
+
+    def test_admin_role_access_granted_with_json_data(self):
+        """Admin-role user receives HTTP 200 and valid JSON data from analytics API."""
+        self.client.force_login(self.admin_user)
+        url = reverse('employees:analytics_api')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('department_distribution', data)
+        self.assertIn('charts', data)
+
+    def test_analytics_url_alias_accessible(self):
+        """The /employees/analytics/ route alias works identically for HR users."""
+        self.client.force_login(self.hr_user)
+        url = reverse('employees:analytics')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['headcount']['total'], 1)
+
+    def test_post_method_not_allowed(self):
+        """POST requests to analytics API return HTTP 405 Method Not Allowed."""
+        self.client.force_login(self.admin_user)
+        url = reverse('employees:analytics_api')
+        response = self.client.post(url, {})
+        self.assertEqual(response.status_code, 405)

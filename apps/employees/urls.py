@@ -15,6 +15,10 @@ urlpatterns = [
     path('<int:pk>/edit/', views.employee_edit, name='employee_edit'),
     path('<int:pk>/edit/', views.employee_edit, name='edit'),
 
+    # Analytics / Dashboard Queries API
+    path('api/analytics/', views.employee_analytics_api, name='analytics_api'),
+    path('analytics/', views.employee_analytics_api, name='analytics'),
+
     # Department Routes
     path('departments/', views.department_list, name='department_list'),
     path('departments/list/', views.department_list, name='departments'),
