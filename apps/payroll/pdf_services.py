@@ -44,6 +44,8 @@ def generate_payslip_pdf(payroll_record):
                 "status": Payslip.Status.FAILED,
             },
         )
+        if payroll_record.basic_salary <= 0:
+            raise ValueError("Cannot generate payslip: salary is missing.")
 
         # Create an in-memory PDF.
         buffer = BytesIO()
