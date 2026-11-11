@@ -1,0 +1,31 @@
+# Security-focused requirements for Smart HRMS
+# Install with: pip install -r requirements-security.txt
+
+# Core security packages
+django-ratelimit>=4.1.0          # Rate limiting for login, password reset, API endpoints
+django-csp>=4.0                  # Content Security Policy headers
+django-permissions-policy>=4.0   # Permissions Policy (Feature Policy) headers
+django-secure>=1.1.0             # Additional security utilities (DEPRECATED - use built-in Django settings)
+django-axes>=5.8                 # Brute-force protection for login
+django-password-validators>=1.7  # Strong password validation (already in base)
+
+# Security scanning & auditing
+bandit>=1.7.0                    # Static analysis for security issues
+safety>=3.0.0                    # Dependency vulnerability scanning
+pip-audit>=2.6.0                 # Alternative vulnerability scanner
+
+# Secrets detection
+trufflehog>=3.80.0               # Secrets scanning (GitHub, GitLab, local)
+detect-secrets>=1.4.0            # Pre-commit hook for secrets detection
+git-secrets>=1.0.0               # Git secrets scanning (if available)
+
+# Logging & monitoring
+python-json-logger>=2.0.0        # JSON structured logging for production
+django-sentry-sdk>=1.38.0        # Sentry error tracking (optional)
+
+# HTTP security
+django-referrer-policy>=1.0      # Referrer-Policy header (built into Django 4.1+)
+django-feature-policy>=3.0       # Feature-Policy header (built into Django 4.1+)
+
+# Two-factor authentication (optional enhancement)
+django-two-factor-auth>=1.12     # 2FA support for admin/users
