@@ -1,7 +1,7 @@
-
 """
 URL configuration for the Smart HRMS project.
 """
+
 from functools import wraps
 
 from django.contrib import admin
@@ -170,25 +170,75 @@ def my_dashboard(request):
     context = get_dashboard_context(
         request, "My Dashboard", menu_items, cards
     )
-    return render(request, "dashboards/employee_dashboard.html", context)
+    return render(
+        request,
+        "dashboards/employee_dashboard.html",
+        context,
+    )
 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+
     path(
         "accounts/",
         include("apps.accounts.urls", namespace="accounts"),
     ),
+
     path(
         "employees/",
         include("apps.employees.urls", namespace="employees"),
     ),
-    path("admin-dashboard/", admin_dashboard, name="admin-dashboard"),
-    path("hr-dashboard/", hr_dashboard, name="hr-dashboard"),
-    path("my-dashboard/", my_dashboard, name="my-dashboard"),
+
+    path(
+        "admin-dashboard/",
+        admin_dashboard,
+        name="admin-dashboard",
+    ),
+
+    path(
+        "hr-dashboard/",
+        hr_dashboard,
+        name="hr-dashboard",
+    ),
+
+    path(
+        "my-dashboard/",
+        my_dashboard,
+        name="my-dashboard",
+    ),
+
     path(
         "reports/",
         include("apps.reports.urls", namespace="reports"),
     ),
-    path("", lambda request: redirect("accounts:login")),
+
+    # Attendance and leave pages
+    path(
+        "attendance/",
+        include("apps.attendance.urls", namespace="attendance"),
+    ),
+
+    path(
+        "leave/",
+        include("apps.leave_management.urls", namespace="leave_management"),
+    ),
+
+    # Existing payroll web URLs
+    path(
+        "payroll/",
+        include("apps.payroll.urls", namespace="payroll"),
+    ),
+
+    # Payroll API URLs
+    path(
+        "api/payroll/",
+        include("apps.payroll.api_urls"),
+    ),
+
+    # Default redirect
+    path(
+        "",
+        lambda request: redirect("accounts:login"),
+    ),
 ]

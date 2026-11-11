@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APIClient
-from rest_framework import status
+from rest_framework import request, status
 
 from apps.accounts.models import User
 from apps.accounts.permissions import IsAdmin, IsHR, IsOwnerOrHR, CanAccessPayroll, IsSelfOrHR
@@ -347,6 +347,7 @@ class PermissionTests(TestCase):
         # Employee cannot access other employee's object
         self.assertFalse(perm.has_object_permission(request, None, self.employee2))
 
+
     def test_can_access_payroll_permission(self):
         """Test CanAccessPayroll permission."""
         perm = CanAccessPayroll()
@@ -359,21 +360,31 @@ class PermissionTests(TestCase):
         request.user = self.hr
         self.assertTrue(perm.has_permission(request, None))
 
-        # Employee does not have permission
+        # Employee has permission to access their own payroll data
         request.user = self.employee
-        self.assertFalse(perm.has_permission(request, None))
+        self.assertTrue(perm.has_permission(request, None))
 
-        # Employee cannot access other's payroll
-        request.user = self.employee
-        self.assertFalse(perm.has_object_permission(request, None, self.employee2))
+        # Employee cannot access another employee's payroll
+        self.assertFalse(
+        perm.has_object_permission(
+            request, None, self.employee2
+        )
+    )
 
-        # Employee can access own payroll (if object has employee field)
+       # Employee can access their own payroll
         class MockPayroll:
-            def __init__(self, user):
-                self.employee = type('Emp', (), {'user': user})()
+         def __init__(self, user):
+            self.employee = type(
+                'Emp', (), {'user_id': user.pk}
+            )()
 
         own_payroll = MockPayroll(self.employee)
-        self.assertTrue(perm.has_object_permission(request, None, own_payroll))
+        self.assertTrue(
+        perm.has_object_permission(
+            request, None, own_payroll
+        )
+    )
+
 
     def test_is_self_or_hr_permission(self):
         """Test IsSelfOrHR permission."""
