@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Count, ProtectedError, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch, reverse
 from django.utils.translation import gettext_lazy as _
@@ -13,6 +14,7 @@ from django.views.decorators.http import require_http_methods
 
 from .forms import DepartmentForm, EmployeeForm
 from .models import Department, Employee
+from .queries import get_dashboard_analytics
 
 User = get_user_model()
 
@@ -459,3 +461,15 @@ def department_delete(request, pk):
         'menu_items': menu_items,
     }
     return render(request, 'employees/department_confirm_delete.html', context)
+
+
+@role_required(User.Role.ADMIN, User.Role.HR)
+@require_http_methods(['GET'])
+def employee_analytics_api(request):
+    """
+    JSON API endpoint providing employee headcount, department distribution,
+    status breakdown, and Chart.js formatted data for dashboard integrations.
+    Restricted to ADMIN and HR roles.
+    """
+    data = get_dashboard_analytics()
+    return JsonResponse(data, safe=False)
