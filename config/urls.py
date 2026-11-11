@@ -213,6 +213,17 @@ urlpatterns = [
         include("apps.reports.urls", namespace="reports"),
     ),
 
+    # Attendance and leave pages
+    path(
+        "attendance/",
+        include("apps.attendance.urls", namespace="attendance"),
+    ),
+
+    path(
+        "leave/",
+        include("apps.leave_management.urls", namespace="leave_management"),
+    ),
+
     # Existing payroll web URLs
     path(
         "payroll/",
