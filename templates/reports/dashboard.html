@@ -57,4 +57,105 @@
     {% endif %}
   </div>
 </div>
+<div class="card mt-4">
+  <div class="card-header">
+    Payroll Period Summary
+  </div>
+
+  <div class="card-body">
+    {% if payroll_period_summaries %}
+      <div class="table-responsive">
+        <table class="table table-striped align-middle">
+          <thead>
+            <tr>
+              <th>Payroll Period</th>
+              <th>Records</th>
+              <th>Basic Salary</th>
+              <th>Allowances</th>
+              <th>Deductions</th>
+              <th>Gross Salary</th>
+              <th>Net Salary</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for summary in payroll_period_summaries %}
+              <tr>
+                <td>{{ summary.period.name }}</td>
+                <td>{{ summary.total_records }}</td>
+                <td>{{ summary.total_basic_salary|floatformat:2 }}</td>
+                <td>{{ summary.total_allowances|floatformat:2 }}</td>
+                <td>{{ summary.total_deductions|floatformat:2 }}</td>
+                <td>{{ summary.total_gross_salary|floatformat:2 }}</td>
+                <td>{{ summary.total_net_salary|floatformat:2 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {% include "partials/_empty_state.html" with message="No payroll records available yet." %}
+    {% endif %}
+  </div>
+</div>
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Payslip Generation Metrics</h5>
+    </div>
+
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <tr>
+                    <th>Total Payslips</th>
+                    <td>{{ payslip_metrics.total_payslips }}</td>
+                </tr>
+                <tr>
+                    <th>Generated Payslips</th>
+                    <td>{{ payslip_metrics.generated_payslips }}</td>
+                </tr>
+                <tr>
+                    <th>Failed Payslips</th>
+                    <td>{{ payslip_metrics.failed_payslips }}</td>
+                </tr>
+                <tr>
+                    <th>Generation Success Rate</th>
+                    <td>{{ payslip_metrics.payslip_success_rate }}%</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Payslip Email Metrics</h5>
+    </div>
+
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <tr>
+                    <th>Total Payslip Emails</th>
+                    <td>{{ email_metrics.total_emails }}</td>
+                </tr>
+                <tr>
+                    <th>Sent Emails</th>
+                    <td>{{ email_metrics.sent_emails }}</td>
+                </tr>
+                <tr>
+                    <th>Failed Emails</th>
+                    <td>{{ email_metrics.failed_emails }}</td>
+                </tr>
+                <tr>
+                    <th>Email Success Rate</th>
+                    <td>{{ email_metrics.email_success_rate }}%</td>
+                </tr>
+                <tr>
+                    <th>Email Failure Rate</th>
+                    <td>{{ email_metrics.email_failure_rate }}%</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
 {% endblock %}

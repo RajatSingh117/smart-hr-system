@@ -3,3 +3,6 @@ venv/
 __pycache__/
 *.sqlite3
 media/
+
+# Generated payslip PDF files
+payslips/

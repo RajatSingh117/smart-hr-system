@@ -200,7 +200,24 @@ class NotificationTest(TestCase):
             log.error_message,
             "Email backend did not confirm sending the message.",
         )
+    @patch(
+        "apps.payroll.notifications.EmailMultiAlternatives.send",
+        side_effect=Exception("SMTP server unavailable"),
+    )
+    def test_smtp_server_unavailable_is_logged_as_failed(self, mock_send):
+        log = send_notification(
+            notification_name="leave_decision",
+            recipient=self.recipient,
+            context=self.context,
+            subject="Leave Request Update",
+        )
 
+        self.assertEqual(log.status, NotificationLog.Status.FAILED)
+        self.assertIsNone(log.sent_at)
+        self.assertEqual(
+            log.error_message,
+            "Email rendering or delivery failed.",
+        )
 
 @override_settings(
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend"
@@ -415,4 +432,23 @@ class PayslipPDFGenerationTest(TestCase):
             Payslip.Status.FAILED,
         )
 
+        self.assertFalse(payslip.pdf_file)
+    def test_missing_salary_is_recorded_as_failed(self):
+        self.payroll_record.basic_salary = Decimal("0.00")
+        self.payroll_record.save()
+
+        with self.assertRaisesMessage(
+            ValueError,
+            "Cannot generate payslip: salary is missing.",
+        ):
+            generate_payslip_pdf(self.payroll_record)
+
+        payslip = Payslip.objects.get(
+            payroll_record=self.payroll_record
+        )
+
+        self.assertEqual(
+            payslip.status,
+            Payslip.Status.FAILED,
+        )
         self.assertFalse(payslip.pdf_file)
