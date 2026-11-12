@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import data_views, stub_views,  views
+from . import chart_views, data_views, export_views, stub_views,  views
 from .stub_views import SimplePreview
 
 app_name = "reports"
@@ -42,6 +42,10 @@ urlpatterns = [
     path("preview/notifications/", stub_views.NotificationListPreview.as_view(), name="preview_notification_list"),
 
     # Reports and Exports
-    path("exports/", data_views.HRSimplePreview.as_view(template_name="reports/exports.html"), name="exports"),
+    path("charts/", chart_views.ChartsPage.as_view(), name="charts"),
+    path("exports/", data_views.ExportsPage.as_view(), name="exports"),
+    path("exports/<str:dataset>/csv/", export_views.ExportCSVView.as_view(), name="export_csv"),
+    path("exports/<str:dataset>/xlsx/", export_views.ExportExcelView.as_view(), name="export_excel"),
+    path("exports/<str:dataset>/pdf/", export_views.ExportPDFView.as_view(), name="export_pdf"),
 ]
 

@@ -4,13 +4,20 @@
 
 {% block dashboard_body %}
 <div class="card">
-  <div class="card-body">
-    <p class="text-muted">Download employee, attendance, leave and payroll data. Export buttons will be enabled soon.</p>
-    <div class="d-flex flex-wrap gap-2">
-      <button type="button" class="btn btn-outline-primary" disabled>Download CSV</button>
-      <button type="button" class="btn btn-outline-primary" disabled>Download Excel</button>
-      <button type="button" class="btn btn-outline-primary" disabled>Download PDF</button>
-    </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light"><tr><th>Data</th><th>CSV</th><th>Excel</th><th>PDF</th></tr></thead>
+      <tbody>
+        {% for label, key in datasets %}
+        <tr>
+          <td>{{ label }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{% url 'reports:export_csv' key %}">Download CSV</a></td>
+          <td><a class="btn btn-sm btn-outline-success" href="{% url 'reports:export_excel' key %}">Download Excel</a></td>
+          <td><a class="btn btn-sm btn-outline-danger" href="{% url 'reports:export_pdf' key %}">Download PDF</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endblock %}
