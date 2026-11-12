@@ -3,7 +3,7 @@
     <div class="hr-stat-icon me-3">{{ icon }}</div>
     <div>
       <div class="text-muted small">{{ title }}</div>
-      <div class="fs-3 fw-semibold">{{ value|default:"--" }}</div>
+      <div class="fs-3 fw-semibold">{{ value|default_if_none:"--" }}</div>
     </div>
   </div>
 </div>

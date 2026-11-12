@@ -24,9 +24,22 @@
   <div class="card-body">
     <form method="post" novalidate>
       {% csrf_token %}
-      {% include "partials/_form_field.html" with label="Remarks (required to reject)" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
+      {% include "partials/_form_field.html" with label="Remarks (required)" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
       <button name="action" value="approve" class="btn btn-success">Approve</button>
       <button name="action" value="reject" class="btn btn-danger">Reject</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if can_cancel %}
+<div class="card mb-3">
+  <div class="card-header">Cancel this request</div>
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form_field.html" with label="Remarks" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
+      <button name="action" value="cancel" class="btn btn-outline-danger">Cancel request</button>
     </form>
   </div>
 </div>
@@ -45,5 +58,5 @@
   </ul>
 </div>
 
-<a href="{% url 'reports:preview_leave_list' %}" class="btn btn-link mt-3">&larr; Back to leave</a>
+<a href="{% url 'leave_management:list' %}" class="btn btn-link mt-3">&larr; Back to leave</a>
 {% endblock %}

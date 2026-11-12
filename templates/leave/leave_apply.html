@@ -18,14 +18,14 @@
   <div class="card-body">
     <form method="post" novalidate>
       {% csrf_token %}
-      {% include "partials/_form_field.html" with label="Leave type" name="leave_type" type="select" options=leave_types value=values.leave_type error=errors.leave_type required=True %}
+      {% include "partials/_form_field.html" with label="Leave type" name="leave_type" type="select_pairs" options=leave_types value=values.leave_type error=errors.leave_type required=True %}
       <div class="row">
         <div class="col-md-6">{% include "partials/_form_field.html" with label="Start date" name="start" type="date" value=values.start error=errors.start required=True %}</div>
         <div class="col-md-6">{% include "partials/_form_field.html" with label="End date" name="end" type="date" value=values.end error=errors.end required=True %}</div>
       </div>
       {% include "partials/_form_field.html" with label="Reason" name="reason" type="textarea" value=values.reason error=errors.reason required=True %}
       <button type="submit" class="btn btn-primary">Submit request</button>
-      <a href="{% url 'reports:preview_leave_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      <a href="{% url 'leave_management:list' %}" class="btn btn-outline-secondary">Cancel</a>
     </form>
   </div>
 </div>

@@ -1,10 +1,11 @@
 {% extends "dashboards/dashboard_base.html" %}
+{% load reports_extras %}
 {% block dashboard_title %}Leave{% endblock %}
 {% block page_heading %}{% if role == "employee" %}My leave{% else %}Leave requests{% endif %}{% endblock %}
 
 {% block dashboard_body %}
 <div class="d-flex justify-content-end mb-3">
-  <a href="{% url 'reports:preview_leave_apply' %}" class="btn btn-primary">+ Apply for leave</a>
+  <a href="{% url 'leave_management:apply' %}" class="btn btn-primary">+ Apply for leave</a>
 </div>
 
 {% include "partials/_search_filter.html" %}
@@ -20,7 +21,7 @@
           <tr>
             <td>{{ l.employee }}</td><td>{{ l.leave_type }}</td><td>{{ l.start }}</td><td>{{ l.end }}</td><td>{{ l.days }}</td>
             <td>{% include "partials/_status_badge.html" with status=l.status %}</td>
-            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'reports:preview_leave_review' l.id %}">
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'leave_management:review' l.id %}">
               {% if role != "employee" and l.status == "Pending" %}Review{% else %}View{% endif %}</a></td>
           </tr>
         {% empty %}
@@ -30,5 +31,6 @@
     </table>
   </div>
 </div>
+{% page_querystring as querystring%}
 {% include "partials/_pagination.html" %}
 {% endblock %}

@@ -14,6 +14,13 @@ When real django forms arrive you can replace this with the form.field.
         <option value="{{ opt }}" {% if opt == value %}selected{% endif %}>{{ opt }}</option>
       {% endfor %}
     </select>
+   {% elif type == "select_pairs" %}
+    <select id="id_{{ name }}" name="{{ name }}" class="form-select {% if error %}is-invalid{% endif %}">
+      <option value="">-- Select --</option>
+      {% for opt in options %}
+        <option value="{{ opt.0 }}" {% if opt.0|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ opt.1 }}</option>
+      {% endfor %}
+    </select> 
   {% elif type == "textarea" %}
     <textarea id="id_{{ name }}" name="{{ name }}" rows="3"
               class="form-control {% if error %}is-invalid{% endif %}">{{ value|default:"" }}</textarea>

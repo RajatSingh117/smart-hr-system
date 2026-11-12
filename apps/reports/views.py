@@ -52,7 +52,7 @@ class RoleDashboardView(LoginRequiredMixin, TemplateView):
     def dispatch(self, request, *args, **kwargs):
         if (
             request.user.is_authenticated
-            and get_role(request.user) != self.required_role
+            and str(get_role(request.user) or "").lower() != self.required_role
         ):
             raise PermissionDenied
 
@@ -65,10 +65,33 @@ class RoleDashboardView(LoginRequiredMixin, TemplateView):
             self.required_role,
             self.request.path,
         )
-        context["cards"] = self.cards
+        values = self.get_card_values()
+        context["cards"] = [
+            {**card, "value": values.get(card["title"], card["value"])}
+            for card in self.cards
+        ]
+        context["card_values"] = self.get_card_values()
 
         return context
+    
+    def get_card_values(self):
+        """Subclasses return {card title: value}. Cards not listed stay as --."""
+        return {}
 
+def org_card_values():
+    """Org-wide numbers. Only call this for Admin and HR."""
+    from apps.leave_management.aggregates import get_leave_counts_by_department
+
+    headcount = Employee.objects.count()
+    pending_leave = sum(
+        row["PENDING"] for row in get_leave_counts_by_department()
+    )
+    return {
+        "Total Headcount": headcount,
+        "Headcount": headcount,
+        "Departments": Department.objects.filter(is_active=True).count(),
+        "Pending Leave Requests": pending_leave,
+    }
 
 ADMIN_CARDS = [
     {"title": "Total Headcount", "value": "--", "icon": "👥"},
@@ -99,11 +122,17 @@ class AdminDashboardView(RoleDashboardView):
     required_role = ADMIN
     cards = ADMIN_CARDS
 
+    def get_card_values(self):
+        return org_card_values()
+
 
 class HRDashboardView(RoleDashboardView):
     template_name = "dashboards/hr_dashboard.html"
     required_role = HR
     cards = HR_CARDS
+
+    def get_card_values(self):
+        return org_card_values()
 
 
 class EmployeeDashboardView(RoleDashboardView):
