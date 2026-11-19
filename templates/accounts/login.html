@@ -1,65 +1,682 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Login - Smart HRMS{% endblock %}
+{% block title %}Sign In — SmartHR{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ==============================================================================
+   SMART HR SYSTEM — ENTERPRISE SAAS LOGIN EXPERIENCE
+   Warm Ivory, Champagne Gold, Deep Charcoal & Modern Editorial Illustration
+   ============================================================================== */
+
+:root,
+[data-theme="light"],
+[data-bs-theme="light"] {
+  --auth-bg-page: #f8f6f0;           /* Soft warm ivory background */
+  --auth-bg-card: #ffffff;           /* Refined white card */
+  --auth-bg-panel: #faf7f2;          /* Soft champagne tint panel */
+  --auth-border: #e6dfd5;            /* Soft warm border */
+  --auth-border-subtle: #f0ebe2;     /* Subtle division border */
+  --auth-text-title: #18181b;        /* Deep charcoal heading */
+  --auth-text-body: #52525b;         /* Refined slate body */
+  --auth-text-muted: #71717a;        /* Subdued slate */
+  --auth-gold: #b8860b;              /* Champagne gold */
+  --auth-gold-hover: #996e06;        /* Deep gold hover */
+  --auth-gold-subtle: rgba(184, 134, 11, 0.12); /* Warm gold background */
+  --auth-gold-border: rgba(184, 134, 11, 0.28); /* Gold border */
+  --auth-input-bg: #ffffff;
+  --auth-input-border: #dcd6cc;
+  --auth-shadow: 0 20px 48px -12px rgba(60, 45, 20, 0.09), 0 8px 20px -6px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"],
+[data-bs-theme="dark"] {
+  --auth-bg-page: #0f1013;           /* Deep charcoal */
+  --auth-bg-card: #16181d;           /* Dark slate surface */
+  --auth-bg-panel: #1b1e24;          /* Elevated slate panel */
+  --auth-border: #282b33;            /* Dark border */
+  --auth-border-subtle: #21242b;     /* Dark subtle border */
+  --auth-text-title: #f5f3ef;        /* Warm off-white */
+  --auth-text-body: #9da3af;         /* Soft warm slate */
+  --auth-text-muted: #6b7280;        /* Muted dark slate */
+  --auth-gold: #d4af37;              /* Muted gold */
+  --auth-gold-hover: #e5c365;        /* Light gold hover */
+  --auth-gold-subtle: rgba(212, 175, 55, 0.15); /* Warm gold background */
+  --auth-gold-border: rgba(212, 175, 55, 0.35); /* Gold border */
+  --auth-input-bg: #1c1f26;
+  --auth-input-border: #2f3440;
+  --auth-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* Page Viewport Wrapper */
+.auth-split-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--auth-bg-page);
+  position: relative;
+  transition: background-color 0.25s ease;
+}
+
+/* Floating Theme Switcher */
+.auth-theme-floating {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.75rem;
+  z-index: 100;
+}
+
+.auth-theme-floating .btn-theme-toggle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--auth-bg-card);
+  border: 1px solid var(--auth-border);
+  color: var(--auth-text-body);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-theme-floating .btn-theme-toggle:hover {
+  color: var(--auth-gold);
+  border-color: var(--auth-gold);
+  transform: rotate(15deg);
+}
+
+/* Central Rounded Login Container */
+.auth-card-container {
+  width: 100%;
+  max-width: 1240px;
+  background-color: var(--auth-bg-card);
+  border: 1px solid var(--auth-border);
+  border-radius: 28px;
+  box-shadow: var(--auth-shadow);
+  display: flex;
+  overflow: hidden;
+  min-height: 640px;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* Left Authentication Panel: ~42% */
+.auth-form-side {
+  flex: 0 0 42%;
+  max-width: 42%;
+  padding: 3.5rem 3.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-color: var(--auth-bg-card);
+  position: relative;
+  transition: background-color 0.25s ease;
+}
+
+.auth-form-inner {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+/* Branding */
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.auth-brand-logo-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+  color: #d4af37;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .auth-brand-logo-icon,
+[data-bs-theme="dark"] .auth-brand-logo-icon {
+  background: linear-gradient(135deg, #27272a 0%, #3f3f46 100%);
+  color: #e5c365;
+}
+
+.auth-brand-name {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--auth-text-title);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  display: block;
+}
+
+.text-accent-gold {
+  color: var(--auth-gold);
+}
+
+.auth-brand-tag {
+  font-size: 0.75rem;
+  color: var(--auth-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  display: block;
+  margin-top: 2px;
+}
+
+/* Welcome Section */
+.auth-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--auth-text-title);
+  letter-spacing: -0.03em;
+  margin-bottom: 0.35rem;
+}
+
+.auth-subtitle {
+  font-size: 0.925rem;
+  color: var(--auth-text-body);
+  line-height: 1.5;
+  margin-bottom: 1.75rem;
+}
+
+/* Form Controls */
+.auth-input-group {
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.auth-input-icon {
+  background-color: var(--auth-input-bg) !important;
+  border: 1px solid var(--auth-input-border) !important;
+  border-right: none !important;
+  color: var(--auth-text-muted) !important;
+  padding: 0 1rem;
+}
+
+.auth-input {
+  height: 50px;
+  background-color: var(--auth-input-bg) !important;
+  border: 1px solid var(--auth-input-border) !important;
+  border-left: none !important;
+  color: var(--auth-text-title) !important;
+  font-size: 0.9375rem;
+  padding-left: 0.25rem;
+  transition: border-color 0.2s ease;
+}
+
+.auth-input:focus {
+  background-color: var(--auth-input-bg) !important;
+  color: var(--auth-text-title) !important;
+  border-color: var(--auth-gold) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.auth-input-group:focus-within {
+  box-shadow: 0 0 0 3px var(--auth-gold-subtle);
+}
+
+.auth-input-group:focus-within .auth-input-icon,
+.auth-input-group:focus-within .auth-input,
+.auth-input-group:focus-within .auth-password-toggle {
+  border-color: var(--auth-gold) !important;
+}
+
+.auth-password-toggle {
+  background-color: var(--auth-input-bg);
+  border: 1px solid var(--auth-input-border);
+  border-left: none;
+  color: var(--auth-text-muted);
+  padding: 0 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s ease;
+}
+
+.auth-password-toggle:hover {
+  color: var(--auth-text-title);
+}
+
+.auth-checkbox .form-check-input {
+  cursor: pointer;
+  background-color: var(--auth-input-bg);
+  border-color: var(--auth-input-border);
+}
+
+.auth-checkbox .form-check-input:checked {
+  background-color: var(--auth-gold);
+  border-color: var(--auth-gold);
+}
+
+.auth-checkbox .form-check-label {
+  color: var(--auth-text-body);
+  font-size: 0.875rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Submit Button */
+.btn-auth-submit {
+  height: 50px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .btn-auth-submit,
+:root .btn-auth-submit {
+  background: linear-gradient(135deg, #c59b27 0%, #a67c1e 100%);
+  color: #ffffff !important;
+  border: 1px solid #946d17;
+  box-shadow: 0 4px 14px rgba(166, 124, 30, 0.25);
+}
+
+[data-theme="light"] .btn-auth-submit:hover,
+:root .btn-auth-submit:hover {
+  background: linear-gradient(135deg, #b8860b 0%, #8f6712 100%);
+  box-shadow: 0 6px 18px rgba(166, 124, 30, 0.35);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .btn-auth-submit,
+[data-bs-theme="dark"] .btn-auth-submit {
+  background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+  color: #0f1013 !important;
+  border: 1px solid #d4af37;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
+}
+
+[data-theme="dark"] .btn-auth-submit:hover,
+[data-bs-theme="dark"] .btn-auth-submit:hover {
+  background: linear-gradient(135deg, #e5c365 0%, #c59b27 100%);
+  color: #000000 !important;
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.45);
+  transform: translateY(-1px);
+}
+
+.auth-form-footer {
+  text-align: center;
+  border-top: 1px solid var(--auth-border-subtle);
+}
+
+/* Right Illustration Panel: ~58% */
+.auth-brand-side {
+  flex: 0 0 58%;
+  max-width: 58%;
+  padding: 3.5rem 3.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--auth-bg-panel);
+  border-left: 1px solid var(--auth-border);
+  position: relative;
+  overflow: hidden;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.auth-illustration-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: auto 0;
+}
+
+.auth-illustration-svg {
+  width: 100%;
+  max-width: 540px;
+  height: auto;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.04));
+}
+
+.auth-illustration-footer {
+  width: 100%;
+  max-width: 480px;
+  text-align: center;
+}
+
+.auth-quote-heading {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--auth-text-title);
+  letter-spacing: -0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.auth-quote-text {
+  font-size: 0.9rem;
+  color: var(--auth-text-body);
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 991.98px) {
+  .auth-card-container {
+    max-width: 480px;
+    border-radius: 20px;
+    min-height: auto;
+  }
+  .auth-brand-side {
+    display: none !important;
+  }
+  .auth-form-side {
+    flex: 1 1 100%;
+    max-width: 100%;
+    padding: 2.75rem 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-split-wrapper {
+    padding: 1.25rem 0.75rem;
+  }
+  .auth-form-side {
+    padding: 2.25rem 1.25rem;
+  }
+  .auth-title {
+    font-size: 1.55rem;
+  }
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="login-container">
-    <div class="card login-card">
-        <div class="login-header">
-            <i class="bi bi-shield-lock-fill fs-1 mb-2"></i>
-            <h2 class="fw-bold mb-0">Smart HRMS</h2>
-            <p class="opacity-75 mt-1 mb-0">Sign in to your account</p>
-        </div>
-        <div class="login-body">
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
+<div class="auth-split-wrapper">
+    <!-- Floating Theme Switcher -->
+    <div class="auth-theme-floating">
+        <button
+          id="theme-toggle"
+          class="btn-theme-toggle"
+          type="button"
+          aria-label="Toggle Light / Dark mode"
+          title="Toggle Light / Dark mode"
+        >
+          <i class="bi bi-sun-fill theme-icon-sun d-none text-warning"></i>
+          <i class="bi bi-moon-stars-fill theme-icon-moon"></i>
+        </button>
+    </div>
 
-            <form method="post" novalidate>
-                {% csrf_token %}
-                <div class="mb-3">
-                    <label for="email" class="form-label fw-medium">Email Address</label>
-                    <input type="email" class="form-control" id="email" name="email" required
-                           autocomplete="email" placeholder="you@company.com"
-                           value="{{ request.POST.email|default:'' }}">
-                </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label fw-medium">Password</label>
-                    <input type="password" class="form-control" id="password" name="password" required
-                           autocomplete="current-password" placeholder="Enter your password">
-                </div>
-                <div class="mb-4">
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="remember_me" name="remember_me">
-                        <label class="form-check-label text-muted small" for="remember_me">Remember me</label>
+    <!-- Centered Login Card Container -->
+    <div class="auth-card-container">
+        <!-- Left Authentication Panel (approx 42%) -->
+        <div class="auth-form-side">
+            <div class="auth-form-inner my-auto">
+                <div class="auth-form-header">
+                    <!-- Branding -->
+                    <div class="auth-brand mb-4">
+                        <div class="auth-brand-logo-icon">
+                            <i class="bi bi-layers-half"></i>
+                        </div>
+                        <div>
+                            <span class="auth-brand-name">Smart<span class="text-accent-gold">HR</span></span>
+                            <span class="auth-brand-tag">Human Resource Management</span>
+                        </div>
                     </div>
-                </div>
-                <button type="submit" class="btn btn-primary w-100 mb-3">
-                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
-                </button>
-            </form>
 
-            <div class="divider">Demo Credentials</div>
-            <div class="row g-2">
-                <div class="col-4">
-                    <small class="text-muted d-block">Admin</small>
-                    <code class="small">admin@hrms.com</code>
+                    <h1 class="auth-title">Welcome back</h1>
+                    <p class="auth-subtitle">Sign in to manage your workforce with confidence.</p>
                 </div>
-                <div class="col-4">
-                    <small class="text-muted d-block">HR</small>
-                    <code class="small">hr@hrms.com</code>
-                </div>
-                <div class="col-4">
-                    <small class="text-muted d-block">Employee</small>
-                    <code class="small">emp@hrms.com</code>
-                </div>
+
+                <!-- Django Messages / Alerts -->
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                            <i class="bi bi-info-circle me-1"></i> {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Authentication Form -->
+                <form method="post" novalidate class="auth-form">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="email" class="form-label fw-semibold" style="color: var(--auth-text-title);">Email Address</label>
+                        <div class="input-group auth-input-group">
+                            <span class="input-group-text auth-input-icon">
+                                <i class="bi bi-envelope"></i>
+                            </span>
+                            <input
+                                type="email"
+                                class="form-control auth-input"
+                                id="email"
+                                name="email"
+                                required
+                                autocomplete="email"
+                                placeholder="name@company.com"
+                                value="{{ request.POST.email|default:'' }}"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="password" class="form-label fw-semibold mb-0" style="color: var(--auth-text-title);">Password</label>
+                        </div>
+                        <div class="input-group auth-input-group">
+                            <span class="input-group-text auth-input-icon">
+                                <i class="bi bi-lock"></i>
+                            </span>
+                            <input
+                                type="password"
+                                class="form-control auth-input"
+                                id="password"
+                                name="password"
+                                required
+                                autocomplete="current-password"
+                                placeholder="Enter your password"
+                            >
+                            <button
+                                type="button"
+                                class="btn-password-toggle auth-password-toggle"
+                                data-target="password"
+                                aria-label="Toggle password visibility"
+                                title="Show password"
+                            >
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div class="form-check auth-checkbox">
+                            <input type="checkbox" class="form-check-input" id="remember_me" name="remember_me">
+                            <label class="form-check-label" for="remember_me">Keep me signed in</label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-auth-submit w-100 shadow-sm">
+                        <span>Sign In to Workspace</span>
+                        <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                </form>
             </div>
-            <p class="text-muted small text-center mt-3 mb-0">Password for all: <code>SecurePass123!</code></p>
+
+            <div class="auth-form-footer pt-3 mt-4">
+                <span class="text-muted small">&copy; {% now "Y" %} Smart HR System &bull; Secure Enterprise Portal</span>
+            </div>
+        </div>
+
+        <!-- Right Illustration Panel (approx 58%) -->
+        <div class="auth-brand-side">
+            <!-- Central Editorial HR Illustration -->
+            <div class="auth-illustration-container">
+                <svg class="auth-illustration-svg" viewBox="0 0 620 440" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <!-- Gradients -->
+                        <linearGradient id="goldGlow" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#C59B27" stop-opacity="0.22" />
+                            <stop offset="100%" stop-color="#C59B27" stop-opacity="0" />
+                        </linearGradient>
+                        <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="var(--auth-bg-card, #ffffff)" />
+                            <stop offset="100%" stop-color="var(--auth-bg-panel, #fcfaf7)" />
+                        </linearGradient>
+                        <linearGradient id="accentBarGrad" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stop-color="#C59B27" />
+                            <stop offset="100%" stop-color="#E5C365" />
+                        </linearGradient>
+                        <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%" filterUnits="userSpaceOnUse">
+                            <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#403010" flood-opacity="0.08" />
+                        </filter>
+                        <filter id="badgeShadow" x="-20%" y="-20%" width="140%" height="140%" filterUnits="userSpaceOnUse">
+                            <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.08" />
+                        </filter>
+                    </defs>
+
+                    <!-- Ambient Decorative Orbs -->
+                    <circle cx="160" cy="140" r="140" fill="url(#goldGlow)" />
+                    <circle cx="480" cy="280" r="160" fill="url(#goldGlow)" opacity="0.6" />
+
+                    <!-- Main HR Operations Console Window -->
+                    <g filter="url(#softGlow)">
+                        <!-- Window Shell -->
+                        <rect x="50" y="50" width="520" height="320" rx="20" fill="url(#cardGrad)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1.5" />
+
+                        <!-- Window Header Bar -->
+                        <rect x="50" y="50" width="520" height="46" rx="20" fill="var(--auth-bg-panel, #F7F4EE)" />
+                        <path d="M 50 76 L 50 96 L 570 96 L 570 76 Z" fill="var(--auth-bg-panel, #F7F4EE)" />
+                        <line x1="50" y1="96" x2="570" y2="96" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+
+                        <!-- Window Control Pills -->
+                        <circle cx="78" cy="73" r="5" fill="#EF4444" opacity="0.8" />
+                        <circle cx="94" cy="73" r="5" fill="#F59E0B" opacity="0.8" />
+                        <circle cx="110" cy="73" r="5" fill="#10B981" opacity="0.8" />
+
+                        <!-- Search Box in Header -->
+                        <rect x="140" y="63" width="180" height="20" rx="10" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+                        <circle cx="155" cy="73" r="3.5" stroke="#9CA3AF" stroke-width="1.2" fill="none" />
+                        <line x1="158" y1="76" x2="162" y2="80" stroke="#9CA3AF" stroke-width="1.2" stroke-linecap="round" />
+                        <text x="170" y="77" font-family="Inter, sans-serif" font-size="9" fill="#9CA3AF">Search personnel &amp; teams...</text>
+
+                        <!-- Live Sync Indicator -->
+                        <rect x="445" y="63" width="105" height="20" rx="10" fill="var(--auth-gold-subtle, #FFF8E7)" stroke="var(--auth-gold-border, #E6D29A)" stroke-width="1" />
+                        <circle cx="458" cy="73" r="3" fill="#B8860B" />
+                        <text x="466" y="76.5" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="var(--auth-gold, #B8860B)">Live Sync Active</text>
+
+                        <!-- Metric Stat Chips Row -->
+                        <!-- Metric 1: Headcount -->
+                        <rect x="75" y="112" width="140" height="58" rx="12" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+                        <text x="90" y="130" font-family="Inter, sans-serif" font-size="9.5" font-weight="600" fill="var(--auth-text-muted, #71717A)" letter-spacing="0.5">HEADCOUNT</text>
+                        <text x="90" y="154" font-family="Inter, sans-serif" font-size="19" font-weight="800" fill="var(--auth-text-title, #18181B)">248</text>
+                        <rect x="156" y="138" width="46" height="18" rx="9" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1" />
+                        <text x="164" y="151" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#059669">+12%</text>
+
+                        <!-- Metric 2: Attendance -->
+                        <rect x="235" y="112" width="145" height="58" rx="12" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+                        <text x="250" y="130" font-family="Inter, sans-serif" font-size="9.5" font-weight="600" fill="var(--auth-text-muted, #71717A)" letter-spacing="0.5">ATTENDANCE</text>
+                        <text x="250" y="154" font-family="Inter, sans-serif" font-size="19" font-weight="800" fill="var(--auth-text-title, #18181B)">98.4%</text>
+                        <circle cx="355" cy="141" r="10" fill="#EEF2FF" />
+                        <path d="M 351 141 L 354 144 L 359 138" stroke="#4F46E5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+                        <!-- Metric 3: Pending Leave -->
+                        <rect x="400" y="112" width="145" height="58" rx="12" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+                        <text x="415" y="130" font-family="Inter, sans-serif" font-size="9.5" font-weight="600" fill="var(--auth-text-muted, #71717A)" letter-spacing="0.5">PENDING LEAVE</text>
+                        <text x="415" y="154" font-family="Inter, sans-serif" font-size="19" font-weight="800" fill="var(--auth-text-title, #18181B)">3 Req</text>
+                        <rect x="488" y="138" width="46" height="18" rx="9" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1" />
+                        <text x="495" y="151" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#D97706">Review</text>
+
+                        <!-- Lower Section: Team Directory List -->
+                        <rect x="75" y="185" width="295" height="165" rx="12" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+                        <text x="92" y="206" font-family="Inter, sans-serif" font-size="10.5" font-weight="700" fill="var(--auth-text-title, #18181B)">Core Workforce Directory</text>
+                        <text x="325" y="206" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="var(--auth-gold, #B8860B)">View all &rarr;</text>
+                        <line x1="75" y1="216" x2="370" y2="216" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+
+                        <!-- Person 1 -->
+                        <circle cx="104" cy="238" r="14" fill="#C59B27" />
+                        <text x="98" y="242" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#FFFFFF">SJ</text>
+                        <text x="126" y="235" font-family="Inter, sans-serif" font-size="10.5" font-weight="600" fill="var(--auth-text-title, #18181B)">Sarah Jenkins</text>
+                        <text x="126" y="247" font-family="Inter, sans-serif" font-size="8.5" fill="var(--auth-text-muted, #71717A)">Product Architecture</text>
+                        <rect x="305" y="230" width="50" height="16" rx="8" fill="#ECFDF5" />
+                        <text x="316" y="242" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#059669">Active</text>
+
+                        <!-- Person 2 -->
+                        <circle cx="104" cy="275" r="14" fill="#18181B" />
+                        <text x="96" y="279" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#E5C365">MV</text>
+                        <text x="126" y="272" font-family="Inter, sans-serif" font-size="10.5" font-weight="600" fill="var(--auth-text-title, #18181B)">Marcus Vance</text>
+                        <text x="126" y="284" font-family="Inter, sans-serif" font-size="8.5" fill="var(--auth-text-muted, #71717A)">People &amp; Culture Lead</text>
+                        <rect x="305" y="267" width="50" height="16" rx="8" fill="#ECFDF5" />
+                        <text x="316" y="279" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#059669">Active</text>
+
+                        <!-- Person 3 -->
+                        <circle cx="104" cy="312" r="14" fill="#4F46E5" />
+                        <text x="97" y="316" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#FFFFFF">ER</text>
+                        <text x="126" y="309" font-family="Inter, sans-serif" font-size="10.5" font-weight="600" fill="var(--auth-text-title, #18181B)">Elena Rostova</text>
+                        <text x="126" y="321" font-family="Inter, sans-serif" font-size="8.5" fill="var(--auth-text-muted, #71717A)">Principal Engineer</text>
+                        <rect x="305" y="304" width="50" height="16" rx="8" fill="#FFFBEB" />
+                        <text x="313" y="316" font-family="Inter, sans-serif" font-size="8.5" font-weight="700" fill="#D97706">Leave</text>
+
+                        <!-- Lower Section: Department Allocation -->
+                        <rect x="385" y="185" width="160" height="165" rx="12" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+                        <text x="402" y="206" font-family="Inter, sans-serif" font-size="10.5" font-weight="700" fill="var(--auth-text-title, #18181B)">Staff Allocation</text>
+                        <line x1="385" y1="216" x2="545" y2="216" stroke="var(--auth-border, #E4DFD5)" stroke-width="1" />
+
+                        <!-- Engineering Bar -->
+                        <text x="402" y="235" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="var(--auth-text-muted, #71717A)">Engineering</text>
+                        <text x="515" y="235" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="var(--auth-text-title, #18181B)">82%</text>
+                        <rect x="402" y="241" width="126" height="6" rx="3" fill="var(--auth-border-subtle, #F0EBE2)" />
+                        <rect x="402" y="241" width="103" height="6" rx="3" fill="url(#accentBarGrad)" />
+
+                        <!-- Product Bar -->
+                        <text x="402" y="267" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="var(--auth-text-muted, #71717A)">Product &amp; Design</text>
+                        <text x="515" y="267" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="var(--auth-text-title, #18181B)">94%</text>
+                        <rect x="402" y="273" width="126" height="6" rx="3" fill="var(--auth-border-subtle, #F0EBE2)" />
+                        <rect x="402" y="273" width="118" height="6" rx="3" fill="#4F46E5" />
+
+                        <!-- Operations Bar -->
+                        <text x="402" y="299" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="var(--auth-text-muted, #71717A)">Operations</text>
+                        <text x="515" y="299" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="var(--auth-text-title, #18181B)">76%</text>
+                        <rect x="402" y="305" width="126" height="6" rx="3" fill="var(--auth-border-subtle, #F0EBE2)" />
+                        <rect x="402" y="305" width="96" height="6" rx="3" fill="#10B981" />
+
+                        <rect x="402" y="324" width="126" height="16" rx="8" fill="var(--auth-bg-panel, #F7F4EE)" />
+                        <text x="424" y="335" font-family="Inter, sans-serif" font-size="8" font-weight="600" fill="var(--auth-text-muted, #71717A)">Fully Synchronized</text>
+                    </g>
+
+                    <!-- Floating Badge 1: Top Right Overlay Card -->
+                    <g filter="url(#badgeShadow)">
+                        <rect x="405" y="25" width="185" height="48" rx="14" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-gold-border, #E6D29A)" stroke-width="1.2" />
+                        <circle cx="430" cy="49" r="13" fill="#FEF3C7" />
+                        <path d="M 425 49 L 428 52 L 436 45" stroke="#B45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        <text x="452" y="44" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="var(--auth-text-title, #18181B)">Onboarding Complete</text>
+                        <text x="452" y="56" font-family="Inter, sans-serif" font-size="8.5" fill="var(--auth-text-muted, #71717A)">Alex Morgan &bull; Senior Dev</text>
+                    </g>
+
+                    <!-- Floating Badge 2: Bottom Left Overlay Card -->
+                    <g filter="url(#badgeShadow)">
+                        <rect x="25" y="340" width="180" height="46" rx="14" fill="var(--auth-bg-card, #FFFFFF)" stroke="var(--auth-border, #E4DFD5)" stroke-width="1.2" />
+                        <circle cx="48" cy="363" r="13" fill="#ECFDF5" />
+                        <path d="M 43 363 L 46 366 L 53 359" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        <text x="68" y="358" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="var(--auth-text-title, #18181B)">Leave Approved</text>
+                        <text x="68" y="370" font-family="Inter, sans-serif" font-size="8.5" fill="var(--auth-text-muted, #71717A)">Annual Leave &bull; 3 Days</text>
+                    </g>
+                </svg>
+            </div>
+
+            <!-- Supporting Brand Statement -->
+            <div class="auth-illustration-footer mt-4">
+                <h3 class="auth-quote-heading">People first. Everything connected.</h3>
+                <p class="auth-quote-text">One workspace for your people, processes, and progress.</p>
+            </div>
         </div>
     </div>
 </div>

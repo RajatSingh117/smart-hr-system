@@ -97,9 +97,16 @@ class EmployeeForm(forms.ModelForm):
 
         self.fields['user'].queryset = User.objects.filter(user_query).order_by('email')
 
-        # Order department and job title dropdowns alphabetically
-        self.fields['department'].queryset = Department.objects.all().order_by('name')
-        self.fields['job_title'].queryset = JobTitle.objects.all().order_by('title')
+        # Order department and job title dropdowns alphabetically, showing active records
+        dept_qs = Department.objects.filter(is_active=True)
+        if self.instance and self.instance.pk and self.instance.department_id:
+            dept_qs = Department.objects.filter(Q(is_active=True) | Q(pk=self.instance.department_id))
+        self.fields['department'].queryset = dept_qs.order_by('name')
+
+        title_qs = JobTitle.objects.filter(is_active=True)
+        if self.instance and self.instance.pk and self.instance.job_title_id:
+            title_qs = JobTitle.objects.filter(Q(is_active=True) | Q(pk=self.instance.job_title_id))
+        self.fields['job_title'].queryset = title_qs.order_by('title')
 
     def clean_employee_id(self):
         employee_id = self.cleaned_data.get('employee_id')
@@ -215,3 +222,45 @@ class DepartmentForm(forms.ModelForm):
                     _('A department with this name already exists.')
                 )
         return name
+
+
+class JobTitleForm(forms.ModelForm):
+    """
+    Form for creating and editing JobTitle records.
+    Provides validation for unique job titles.
+    """
+
+    class Meta:
+        model = JobTitle
+        fields = [
+            'title',
+            'description',
+            'is_active',
+        ]
+        widgets = {
+            'title': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': _('e.g., Software Engineer, HR Specialist'),
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': _('Overview of responsibilities and scope'),
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+        }
+
+    def clean_title(self):
+        title = self.cleaned_data.get('title')
+        if title:
+            title = title.strip()
+            qs = JobTitle.objects.filter(title__iexact=title)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(
+                    _('A job title with this title already exists.')
+                )
+        return title

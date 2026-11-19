@@ -1,27 +1,70 @@
 {% extends "dashboards/dashboard_base.html" %}
-{% block dashboard_title %}Payroll{% endblock %}
-{% block page_heading %}Payroll runs{% endblock %}
+{% load static %}
+
+{% block dashboard_title %}Payroll Management{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-cash-stack fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Payroll Management</h1>
+      <p class="text-secondary small mb-0">Review payroll disbursement runs, employee compensations, and net disbursements</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
-<div class="card">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-      <thead class="table-light"><tr><th>Period</th><th>Employees</th><th>Gross</th><th>Deductions</th><th>Net pay</th><th>Status</th></tr></thead>
-      <tbody>
-        {% for r in runs %}
+<div class="card border-0 shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="fw-bold mb-0"><i class="bi bi-receipt-cutoff me-2 text-primary"></i>Payroll Runs</h5>
+    <span class="badge bg-primary-subtle text-primary">Confidential</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
           <tr>
-            <td>{{ r.period }}</td>
-            <td>{{ r.employees }}</td>
-            <td>{{ r.gross }}</td>
-            <td>{{ r.deductions }}</td>
-            <td>{{ r.net }}</td>
-            <td><span class="badge {% if r.status == 'Paid' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ r.status }}</span></td>
+            <th scope="col" class="ps-4">Period</th>
+            <th scope="col" class="text-center">Employees</th>
+            <th scope="col">Gross Salary</th>
+            <th scope="col">Deductions</th>
+            <th scope="col">Net Pay</th>
+            <th scope="col" class="text-end pe-4">Status</th>
           </tr>
-        {% empty %}
-          <tr><td colspan="6">{% include "partials/_empty_state.html" with message="No payroll runs yet." %}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for r in runs %}
+            <tr>
+              <td class="ps-4 fw-semibold text-primary">
+                <i class="bi bi-calendar-event me-1 text-secondary"></i>{{ r.period }}
+              </td>
+              <td class="text-center">
+                <span class="badge bg-secondary-subtle text-secondary rounded-pill px-2 py-1">{{ r.employees }}</span>
+              </td>
+              <td class="fw-medium">${{ r.gross|default:"0.00" }}</td>
+              <td class="text-danger">-${{ r.deductions|default:"0.00" }}</td>
+              <td class="fw-bold text-dark">${{ r.net|default:"0.00" }}</td>
+              <td class="text-end pe-4">
+                {% if r.status == "Paid" or r.status == "Processed" %}
+                  <span class="badge bg-success-subtle text-success rounded-pill px-2 py-1"><i class="bi bi-check-circle me-1"></i>{{ r.status }}</span>
+                {% else %}
+                  <span class="badge bg-warning-subtle text-warning rounded-pill px-2 py-1"><i class="bi bi-clock-history me-1"></i>{{ r.status }}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="py-5 text-center text-muted">
+                {% include "partials/_empty_state.html" with message="No payroll disbursement runs recorded yet." %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -1,0 +1,97 @@
+{% extends "dashboards/dashboard_base.html" %}
+{% load static %}
+
+{% block dashboard_title %}Job Titles{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-briefcase fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Job Titles</h1>
+      <p class="text-secondary small mb-0">Manage job roles, titles, and organizational positions</p>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'employees:department_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-building me-1"></i> View Departments
+    </a>
+    <a href="{% url 'employees:job_title_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-1"></i> Add Job Title
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_body %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if job_titles %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col" class="ps-4">Job Title</th>
+              <th scope="col">Description</th>
+              <th scope="col" class="text-center">Assigned Employees</th>
+              <th scope="col" class="text-center">Status</th>
+              <th scope="col" class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for title in job_titles %}
+              <tr>
+                <td class="ps-4 fw-semibold text-primary">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-badge text-secondary"></i>
+                    <span>{{ title.title }}</span>
+                  </div>
+                </td>
+                <td class="text-secondary small" style="max-width: 350px;">
+                  {{ title.description|default:"—"|truncatewords:20 }}
+                </td>
+                <td class="text-center">
+                  <span class="badge {% if title.employee_count > 0 %}bg-primary{% else %}bg-secondary{% endif %} rounded-pill px-3 py-1">
+                    {{ title.employee_count }}
+                  </span>
+                </td>
+                <td class="text-center">
+                  {% if title.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                  {% endif %}
+                </td>
+                <td class="text-end pe-4">
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'employees:job_title_edit' title.pk %}" class="btn btn-outline-primary" title="Edit Job Title">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <a href="{% url 'employees:job_title_delete' title.pk %}" class="btn btn-outline-danger" title="Delete Job Title">
+                      <i class="bi bi-trash"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-4">
+        <div class="hr-empty-state">
+          <div class="hr-empty-icon">
+            <i class="bi bi-briefcase"></i>
+          </div>
+          <h5 class="hr-empty-title">No Job Titles Registered</h5>
+          <p class="hr-empty-description">Define standard job titles and roles to assign to employees across your organization.</p>
+          <a href="{% url 'employees:job_title_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Add First Job Title
+          </a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

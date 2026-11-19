@@ -4,7 +4,15 @@
 {% block dashboard_title %}Departments{% endblock %}
 {% block page_heading %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-  <span><i class="bi bi-building me-2"></i>Department Management</span>
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-building fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Departments</h1>
+      <p class="text-secondary small mb-0">Manage organizational units, department leads, and team allocations</p>
+    </div>
+  </div>
   <a href="{% url 'employees:department_create' %}" class="btn btn-primary">
     <i class="bi bi-plus-circle me-1"></i> Add Department
   </a>
@@ -12,7 +20,7 @@
 {% endblock %}
 
 {% block dashboard_body %}
-<div class="card border-0 shadow-sm">
+<div class="card">
   <div class="card-body p-0">
     {% if departments %}
       <div class="table-responsive">
@@ -22,7 +30,7 @@
               <th scope="col" class="ps-4">Department Name</th>
               <th scope="col">Description</th>
               <th scope="col">Department Head</th>
-              <th scope="col" class="text-center">Employees</th>
+              <th scope="col" class="text-center">Staff Count</th>
               <th scope="col" class="text-center">Status</th>
               <th scope="col" class="text-end pe-4">Actions</th>
             </tr>
@@ -30,19 +38,22 @@
           <tbody>
             {% for dept in departments %}
               <tr>
-                <td class="ps-4 fw-bold text-dark">
-                  {{ dept.name }}
+                <td class="ps-4 fw-semibold text-primary">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-building text-secondary"></i>
+                    <span>{{ dept.name }}</span>
+                  </div>
                 </td>
-                <td class="text-muted small" style="max-width: 300px;">
+                <td class="text-secondary small" style="max-width: 300px;">
                   {{ dept.description|default:"—"|truncatewords:20 }}
                 </td>
                 <td>
                   {% if dept.department_head %}
-                    <a href="{% url 'employees:employee_detail' dept.department_head.pk %}" class="text-decoration-none fw-medium text-dark">
+                    <a href="{% url 'employees:employee_detail' dept.department_head.pk %}" class="text-decoration-none fw-medium">
                       <i class="bi bi-person-badge me-1 text-primary"></i>{{ dept.department_head.full_name }}
                     </a>
                   {% else %}
-                    <span class="text-muted small fst-italic">None assigned</span>
+                    <span class="text-secondary small fst-italic">None assigned</span>
                   {% endif %}
                 </td>
                 <td class="text-center">
@@ -74,7 +85,16 @@
       </div>
     {% else %}
       <div class="p-4">
-        {% include "partials/_empty_state.html" with message="No departments registered yet. Click 'Add Department' to create one." %}
+        <div class="hr-empty-state">
+          <div class="hr-empty-icon">
+            <i class="bi bi-building"></i>
+          </div>
+          <h5 class="hr-empty-title">No Departments Yet</h5>
+          <p class="hr-empty-description">Create operational departments to organize teams, leadership, and reporting structures.</p>
+          <a href="{% url 'employees:department_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Add First Department
+          </a>
+        </div>
       </div>
     {% endif %}
   </div>

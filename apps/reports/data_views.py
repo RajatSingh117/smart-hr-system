@@ -12,7 +12,8 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from apps.attendance.models import Attendance
 
 from . import real_data
-from .access import RoleRequiredMixin, employee_for, is_hr_or_admin
+from .access import RoleRequiredMixin, employee_for, is_hr_or_admin, user_role
+from .navigation import menu_for_role
 from .stub_views import (
     AttendanceListPreview,
     DepartmentListPreview,
@@ -136,6 +137,11 @@ class ExportsPage(RoleRequiredMixin, SimplePreview):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx["menu_items"] = menu_for_role(
+            user_role(self.request.user),
+            self.request.path,
+            valid_only=True,
+        )
         ctx["datasets"] = [
             ("Employees", "employees"),
             ("Attendance", "attendance"),

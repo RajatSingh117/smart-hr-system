@@ -5,12 +5,12 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from apps.employees.models import Employee
 from apps.attendance.models import Attendance
-from .models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
-from .services import  (calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request,restore_leave_balance,)
+from apps.leave_management.models import LeaveBalance, LeaveRequest, LeaveStatusHistory, LeaveType, PublicHoliday
+from apps.leave_management.services import (calculate_working_days,calculate_working_days_by_year, change_leave_status, create_leave_request,restore_leave_balance,)
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from .events import leave_cancelled, leave_decision_made
+from apps.leave_management.events import leave_cancelled, leave_decision_made
 from django.db import(
     close_old_connections,
       connection,

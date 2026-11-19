@@ -1,53 +1,474 @@
 {% extends "dashboards/dashboard_base.html" %}
-{% block dashboard_title %}Charts{% endblock %}
-{% block page_heading %}Charts{% endblock %}
+{% load static %}
+
+{% block dashboard_title %}Analytics & Charts{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-graph-up fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Analytics & Charts</h1>
+      <p class="text-secondary small mb-0">Organizational workforce distribution, attendance, and leave metrics</p>
+    </div>
+  </div>
+  <a href="{% url 'reports:exports' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-download me-1"></i> Data Exports
+  </a>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
-<div class="row g-3">
-  <div class="col-lg-6">
-    <div class="card"><div class="card-body">
-      <h6 class="card-title">Employees by department</h6>
-      <canvas id="chartDepartments" height="220"></canvas>
-    </div></div>
+<!-- Top KPI Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card hr-stat-card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Total Staff</span>
+          <span class="badge bg-primary-subtle text-primary rounded-circle p-2"><i class="bi bi-people"></i></span>
+        </div>
+        <div class="fs-4 fw-bold text-dark">{{ kpis.total_employees }}</div>
+      </div>
+    </div>
   </div>
-  <div class="col-lg-6">
-    <div class="card"><div class="card-body">
-      <h6 class="card-title">Leave requests by status</h6>
-      <canvas id="chartLeaves" height="220"></canvas>
-    </div></div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card hr-stat-card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Active</span>
+          <span class="badge bg-success-subtle text-success rounded-circle p-2"><i class="bi bi-person-check"></i></span>
+        </div>
+        <div class="fs-4 fw-bold text-success">{{ kpis.active_employees }}</div>
+      </div>
+    </div>
   </div>
-  <div class="col-12">
-    <div class="card"><div class="card-body">
-      <h6 class="card-title">Present days per month</h6>
-      <canvas id="chartAttendance" height="110"></canvas>
-    </div></div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card hr-stat-card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">On Leave</span>
+          <span class="badge bg-warning-subtle text-warning rounded-circle p-2"><i class="bi bi-clock-history"></i></span>
+        </div>
+        <div class="fs-4 fw-bold text-warning">{{ kpis.on_leave }}</div>
+      </div>
+    </div>
   </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card hr-stat-card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Terminated</span>
+          <span class="badge bg-danger-subtle text-danger rounded-circle p-2"><i class="bi bi-person-x"></i></span>
+        </div>
+        <div class="fs-4 fw-bold text-secondary">{{ kpis.terminated }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card hr-stat-card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Departments</span>
+          <span class="badge bg-info-subtle text-info rounded-circle p-2"><i class="bi bi-building"></i></span>
+        </div>
+        <div class="fs-4 fw-bold text-info">{{ kpis.total_departments }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card hr-stat-card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-semibold">Attendance Logs</span>
+          <span class="badge bg-primary-subtle text-primary rounded-circle p-2"><i class="bi bi-calendar-check"></i></span>
+        </div>
+        <div class="fs-4 fw-bold text-primary">{{ kpis.total_attendance }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Grid -->
+<div class="row g-4">
+  <!-- Chart 1: Department Distribution -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0"><i class="bi bi-building me-2 text-primary"></i>Employees by Department</h6>
+      </div>
+      <div class="card-body p-4">
+        {% if chart_data.departments.labels %}
+          <div style="position: relative; height: 260px; width: 100%;">
+            <canvas id="chartDepartments"></canvas>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted py-5" style="height: 260px;">
+            <div class="text-center">
+              <i class="bi bi-bar-chart fs-1 opacity-50 d-block mb-2"></i>
+              <span>No department allocation data available</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 2: Status Breakdown -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0"><i class="bi bi-pie-chart me-2 text-success"></i>Employment Status Breakdown</h6>
+      </div>
+      <div class="card-body p-4">
+        {% if chart_data.status.values and kpis.total_employees > 0 %}
+          <div style="position: relative; height: 260px; width: 100%;">
+            <canvas id="chartStatus"></canvas>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted py-5" style="height: 260px;">
+            <div class="text-center">
+              <i class="bi bi-pie-chart fs-1 opacity-50 d-block mb-2"></i>
+              <span>No employee records in system</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 3: Monthly Attendance Trends -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0"><i class="bi bi-calendar3 me-2 text-primary"></i>Present Attendance by Month</h6>
+      </div>
+      <div class="card-body p-4">
+        {% if chart_data.attendance.labels %}
+          <div style="position: relative; height: 260px; width: 100%;">
+            <canvas id="chartAttendance"></canvas>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted py-5" style="height: 260px;">
+            <div class="text-center">
+              <i class="bi bi-calendar-x fs-1 opacity-50 d-block mb-2"></i>
+              <span>No attendance check-ins recorded yet</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 4: Leave Requests by Status -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0"><i class="bi bi-tropical-storm me-2 text-warning"></i>Leave Requests by Status</h6>
+      </div>
+      <div class="card-body p-4">
+        {% if chart_data.leaves.labels %}
+          <div style="position: relative; height: 260px; width: 100%;">
+            <canvas id="chartLeaves"></canvas>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted py-5" style="height: 260px;">
+            <div class="text-center">
+              <i class="bi bi-inbox fs-1 opacity-50 d-block mb-2"></i>
+              <span>No leave requests submitted yet</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 5: Job Title Distribution -->
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0"><i class="bi bi-briefcase me-2 text-info"></i>Staff by Job Title</h6>
+      </div>
+      <div class="card-body p-4">
+        {% if chart_data.job_titles.labels %}
+          <div style="position: relative; height: 260px; width: 100%;">
+            <canvas id="chartJobTitles"></canvas>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted py-5" style="height: 260px;">
+            <div class="text-center">
+              <i class="bi bi-briefcase fs-1 opacity-50 d-block mb-2"></i>
+              <span>No job title assignments recorded</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart 6: Department Salary Aggregation (Payroll Authorized) -->
+  {% if can_see_salary %}
+  <div class="col-12 col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0"><i class="bi bi-cash-coin me-2 text-success"></i>Department Monthly Payroll ($)</h6>
+        <span class="badge bg-success-subtle text-success small">Authorized</span>
+      </div>
+      <div class="card-body p-4">
+        {% if chart_data.salaries.labels %}
+          <div style="position: relative; height: 260px; width: 100%;">
+            <canvas id="chartSalaries"></canvas>
+          </div>
+        {% else %}
+          <div class="d-flex align-items-center justify-content-center text-muted py-5" style="height: 260px;">
+            <div class="text-center">
+              <i class="bi bi-cash-stack fs-1 opacity-50 d-block mb-2"></i>
+              <span>No salary allocations recorded in active departments</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 {{ chart_data|json_script:"chart-data" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-  const data = JSON.parse(document.getElementById("chart-data").textContent);
-  const colors = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948"];
+  document.addEventListener("DOMContentLoaded", function () {
+    const dataElement = document.getElementById("chart-data");
+    if (!dataElement) return;
+    const data = JSON.parse(dataElement.textContent);
 
-  new Chart(document.getElementById("chartDepartments"), {
-    type: "bar",
-    data: { labels: data.departments.labels,
-            datasets: [{ label: "Employees", data: data.departments.values, backgroundColor: colors[0] }] },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
-  });
+    function getThemeStyles() {
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      return {
+        textColor: isDark ? "#a1a1aa" : "#71717a",
+        gridColor: isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(24, 24, 27, 0.06)",
+        tooltipBg: isDark ? "#181b23" : "#ffffff",
+        tooltipText: isDark ? "#f4f4f5" : "#18181b",
+        goldColor: isDark ? "#d4af37" : "#b8860b",
+      };
+    }
 
-  new Chart(document.getElementById("chartLeaves"), {
-    type: "doughnut",
-    data: { labels: data.leaves.labels,
-            datasets: [{ data: data.leaves.values, backgroundColor: colors }] }
-  });
+    const theme = getThemeStyles();
+    const goldPalette = ["#b8860b", "#c59b27", "#d4af37", "#996e06", "#e5c365"];
+    const statusPalette = ["#10b981", "#f59e0b", "#ef4444", "#b8860b", "#0284c7"];
 
-  new Chart(document.getElementById("chartAttendance"), {
-    type: "line",
-    data: { labels: data.attendance.labels,
-            datasets: [{ label: "Present", data: data.attendance.values, borderColor: colors[2], tension: 0.3 }] },
-    options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    const chartInstances = [];
+
+    // 1. Department Distribution Bar Chart
+    const deptCanvas = document.getElementById("chartDepartments");
+    if (deptCanvas && data.departments && data.departments.labels.length > 0) {
+      chartInstances.push(new Chart(deptCanvas, {
+        type: "bar",
+        data: {
+          labels: data.departments.labels,
+          datasets: [{
+            label: "Employees",
+            data: data.departments.values,
+            backgroundColor: theme.goldColor,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: theme.tooltipBg, titleColor: theme.tooltipText, bodyColor: theme.tooltipText, borderColor: "#e4dfd5", borderWidth: 1 }
+          },
+          scales: {
+            x: { ticks: { color: theme.textColor }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { precision: 0, color: theme.textColor }, grid: { color: theme.gridColor } }
+          }
+        }
+      }));
+    }
+
+    // 2. Status Doughnut Chart
+    const statusCanvas = document.getElementById("chartStatus");
+    if (statusCanvas && data.status && data.status.labels.length > 0) {
+      chartInstances.push(new Chart(statusCanvas, {
+        type: "doughnut",
+        data: {
+          labels: data.status.labels,
+          datasets: [{
+            data: data.status.values,
+            backgroundColor: ["#10b981", "#f59e0b", "#ef4444"],
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom", labels: { color: theme.textColor, boxWidth: 12 } },
+            tooltip: { backgroundColor: theme.tooltipBg, titleColor: theme.tooltipText, bodyColor: theme.tooltipText, borderColor: "#e4dfd5", borderWidth: 1 }
+          }
+        }
+      }));
+    }
+
+    // 3. Attendance Line Chart
+    const attCanvas = document.getElementById("chartAttendance");
+    if (attCanvas && data.attendance && data.attendance.labels.length > 0) {
+      chartInstances.push(new Chart(attCanvas, {
+        type: "line",
+        data: {
+          labels: data.attendance.labels,
+          datasets: [{
+            label: "Present Days",
+            data: data.attendance.values,
+            borderColor: theme.goldColor,
+            backgroundColor: "rgba(184, 134, 11, 0.12)",
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: theme.goldColor,
+            pointRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: theme.tooltipBg, titleColor: theme.tooltipText, bodyColor: theme.tooltipText, borderColor: "#e4dfd5", borderWidth: 1 }
+          },
+          scales: {
+            x: { ticks: { color: theme.textColor }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { precision: 0, color: theme.textColor }, grid: { color: theme.gridColor } }
+          }
+        }
+      }));
+    }
+
+    // 4. Leave Status Doughnut Chart
+    const leaveCanvas = document.getElementById("chartLeaves");
+    if (leaveCanvas && data.leaves && data.leaves.labels.length > 0) {
+      chartInstances.push(new Chart(leaveCanvas, {
+        type: "doughnut",
+        data: {
+          labels: data.leaves.labels,
+          datasets: [{
+            data: data.leaves.values,
+            backgroundColor: statusPalette,
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom", labels: { color: theme.textColor, boxWidth: 12 } },
+            tooltip: { backgroundColor: theme.tooltipBg, titleColor: theme.tooltipText, bodyColor: theme.tooltipText, borderColor: "#e4dfd5", borderWidth: 1 }
+          }
+        }
+      }));
+    }
+
+    // 5. Job Title Bar Chart
+    const jobCanvas = document.getElementById("chartJobTitles");
+    if (jobCanvas && data.job_titles && data.job_titles.labels.length > 0) {
+      chartInstances.push(new Chart(jobCanvas, {
+        type: "bar",
+        data: {
+          labels: data.job_titles.labels,
+          datasets: [{
+            label: "Employees",
+            data: data.job_titles.values,
+            backgroundColor: "#c59b27",
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { backgroundColor: theme.tooltipBg, titleColor: theme.tooltipText, bodyColor: theme.tooltipText, borderColor: "#e4dfd5", borderWidth: 1 }
+          },
+          scales: {
+            x: { ticks: { color: theme.textColor }, grid: { display: false } },
+            y: { beginAtZero: true, ticks: { precision: 0, color: theme.textColor }, grid: { color: theme.gridColor } }
+          }
+        }
+      }));
+    }
+
+    // 6. Salary Aggregation Bar Chart
+    const salCanvas = document.getElementById("chartSalaries");
+    if (salCanvas && data.salaries && data.salaries.labels.length > 0) {
+      chartInstances.push(new Chart(salCanvas, {
+        type: "bar",
+        data: {
+          labels: data.salaries.labels,
+          datasets: [{
+            label: "Monthly Salary Total ($)",
+            data: data.salaries.values,
+            backgroundColor: "#10b981",
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: theme.tooltipBg,
+              titleColor: theme.tooltipText,
+              bodyColor: theme.tooltipText,
+              callbacks: {
+                label: function (ctx) {
+                  return " $" + Number(ctx.raw).toLocaleString();
+                }
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { color: theme.textColor }, grid: { display: false } },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: theme.textColor,
+                callback: function (val) { return "$" + Number(val).toLocaleString(); }
+              },
+              grid: { color: theme.gridColor }
+            }
+          }
+        }
+      }));
+    }
+
+    // Listen for global theme change and dynamically update all chart styles
+    window.addEventListener("themeChanged", function () {
+      const updatedTheme = getThemeStyles();
+      chartInstances.forEach(function (chart) {
+        if (chart.options.scales) {
+          if (chart.options.scales.x) {
+            chart.options.scales.x.ticks.color = updatedTheme.textColor;
+          }
+          if (chart.options.scales.y) {
+            chart.options.scales.y.ticks.color = updatedTheme.textColor;
+            if (chart.options.scales.y.grid) {
+              chart.options.scales.y.grid.color = updatedTheme.gridColor;
+            }
+          }
+        }
+        if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+          chart.options.plugins.legend.labels.color = updatedTheme.textColor;
+        }
+        if (chart.options.plugins && chart.options.plugins.tooltip) {
+          chart.options.plugins.tooltip.backgroundColor = updatedTheme.tooltipBg;
+          chart.options.plugins.tooltip.titleColor = updatedTheme.tooltipText;
+          chart.options.plugins.tooltip.bodyColor = updatedTheme.tooltipText;
+        }
+        chart.update();
+      });
+    });
   });
 </script>
 {% endblock %}

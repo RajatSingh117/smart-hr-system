@@ -1,22 +1,62 @@
 {% extends "dashboards/dashboard_base.html" %}
-{% block dashboard_title %}Correct attendance{% endblock %}
-{% block page_heading %}Correct attendance record{% endblock %}
+{% load static %}
+
+{% block dashboard_title %}Correct Attendance{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-pencil-square fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Correct Attendance Record</h1>
+      <p class="text-secondary small mb-0">Administrative override and manual attendance log adjustment</p>
+    </div>
+  </div>
+  <a href="{% url 'attendance:list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Attendance
+  </a>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
-<div class="alert alert-info" style="max-width: 640px;">
-  Only HR can correct attendance. Every correction is written to the audit log.
-</div>
-<div class="card" style="max-width: 640px;">
-  <div class="card-body">
-    <form method="post" novalidate>
-      {% csrf_token %}
-      {% include "partials/_form_field.html" with label="Employee" name="employee" type="select_pairs" options=people value=values.employee error=errors.employee required=True %}
-      {% include "partials/_form_field.html" with label="Date" name="date" type="date" value=values.date error=errors.date required=True %}
-      {% include "partials/_form_field.html" with label="Correct status" name="status" type="select_pairs" options=statuses value=values.status error=errors.status required=True %}
-      {% include "partials/_form_field.html" with label="Reason for correction" name="reason" type="textarea" value=values.reason error=errors.reason required=True %}
-      <button type="submit" class="btn btn-primary">Submit correction</button>
-      <a href="{% url 'attendance:list' %}" class="btn btn-outline-secondary">Cancel</a>
-    </form>
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="alert alert-info d-flex align-items-center gap-3 mb-4 shadow-xs" role="alert">
+      <i class="bi bi-shield-check fs-4 text-info flex-shrink-0"></i>
+      <div class="small">
+        <strong>Audit Logging Notice:</strong> Attendance corrections are restricted to HR specialists. Every manual correction is permanently timestamped and recorded in the system audit trail.
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4 p-md-5">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="mb-3">
+            {% include "partials/_form_field.html" with label="Employee" name="employee" type="select_pairs" options=people value=values.employee error=errors.employee required=True %}
+          </div>
+          <div class="mb-3">
+            {% include "partials/_form_field.html" with label="Attendance Date" name="date" type="date" value=values.date error=errors.date required=True %}
+          </div>
+          <div class="mb-3">
+            {% include "partials/_form_field.html" with label="Corrected Status" name="status" type="select_pairs" options=statuses value=values.status error=errors.status required=True %}
+          </div>
+          <div class="mb-4">
+            {% include "partials/_form_field.html" with label="Reason for Correction" name="reason" type="textarea" value=values.reason error=errors.reason required=True %}
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+            <a href="{% url 'attendance:list' %}" class="btn btn-outline-secondary px-4">
+              Cancel
+            </a>
+            <button type="submit" class="btn btn-primary px-4 fw-bold">
+              <i class="bi bi-check2-circle me-1"></i> Submit Correction
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

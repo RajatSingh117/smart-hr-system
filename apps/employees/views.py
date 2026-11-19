@@ -12,8 +12,8 @@ from django.urls import NoReverseMatch, reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_http_methods
 
-from .forms import DepartmentForm, EmployeeForm
-from .models import Department, Employee
+from .forms import DepartmentForm, EmployeeForm, JobTitleForm
+from .models import Department, Employee, JobTitle
 from .queries import get_dashboard_analytics
 
 User = get_user_model()
@@ -48,57 +48,12 @@ def role_required(*allowed_roles):
 
 def _get_menu_items(request, active_label=""):
     """Build sidebar navigation items with proper active state."""
-    try:
-        if request.user.role == User.Role.ADMIN:
-            dashboard_url = reverse("admin-dashboard")
-        elif request.user.role == User.Role.HR:
-            dashboard_url = reverse("hr-dashboard")
-        else:
-            dashboard_url = reverse("my-dashboard")
-    except NoReverseMatch:
-        dashboard_url = "/accounts/dashboard/"
-
-    try:
-        emp_list_url = reverse("employees:employee_list")
-    except NoReverseMatch:
-        emp_list_url = "/employees/"
-
-    try:
-        dept_list_url = reverse("employees:department_list")
-    except NoReverseMatch:
-        dept_list_url = "/employees/departments/"
-
-    try:
-        profile_url = reverse("accounts:profile")
-    except NoReverseMatch:
-        profile_url = "/accounts/profile/"
-
-    return [
-        {
-            "label": "Dashboard",
-            "url": dashboard_url,
-            "icon": "⌂",
-            "active": active_label == "Dashboard",
-        },
-        {
-            "label": "Employees",
-            "url": emp_list_url,
-            "icon": "👥",
-            "active": active_label == "Employees",
-        },
-        {
-            "label": "Departments",
-            "url": dept_list_url,
-            "icon": "▤",
-            "active": active_label == "Departments",
-        },
-        {
-            "label": "My Profile",
-            "url": profile_url,
-            "icon": "👤",
-            "active": active_label == "Profile",
-        },
-    ]
+    from apps.reports.navigation import menu_for_role
+    items = menu_for_role(getattr(request.user, "role", None), request.path, valid_only=True)
+    if active_label:
+        for item in items:
+            item["active"] = (item["label"] == active_label)
+    return items
 
 
 # ==============================================================================
@@ -473,3 +428,154 @@ def employee_analytics_api(request):
     """
     data = get_dashboard_analytics()
     return JsonResponse(data, safe=False)
+
+
+# ==============================================================================
+# Job Title Views
+# ==============================================================================
+
+@role_required(User.Role.ADMIN, User.Role.HR)
+@require_http_methods(['GET'])
+def job_title_list(request):
+    """
+    Job title directory listing with employee count annotations.
+    Restricted to ADMIN and HR.
+    """
+    job_titles = JobTitle.objects.annotate(
+        employee_count=Count('employees')
+    ).order_by('title')
+
+    menu_items = _get_menu_items(request, active_label='Job Titles')
+
+    context = {
+        'job_titles': job_titles,
+        'menu_items': menu_items,
+    }
+    return render(request, 'employees/job_title_list.html', context)
+
+
+@role_required(User.Role.ADMIN, User.Role.HR)
+@require_http_methods(['GET', 'POST'])
+def job_title_create(request):
+    """
+    Job title creation view. Restricted to ADMIN and HR.
+    """
+    if request.method == 'POST':
+        form = JobTitleForm(request.POST)
+        if form.is_valid():
+            job_title = form.save(commit=False)
+            job_title.save(audit_actor=request.user, audit_request=request)
+            form.save_m2m()
+
+            messages.success(
+                request,
+                _('Job title "%(title)s" was successfully created.') % {
+                    'title': job_title.title,
+                }
+            )
+            return redirect('employees:job_title_list')
+    else:
+        form = JobTitleForm()
+
+    menu_items = _get_menu_items(request, active_label='Job Titles')
+
+    context = {
+        'form': form,
+        'action': 'create',
+        'title': _('Add Job Title'),
+        'menu_items': menu_items,
+    }
+    return render(request, 'employees/job_title_form.html', context)
+
+
+@role_required(User.Role.ADMIN, User.Role.HR)
+@require_http_methods(['GET', 'POST'])
+def job_title_edit(request, pk):
+    """
+    Job title edit view. Restricted to ADMIN and HR.
+    """
+    job_title = get_object_or_404(JobTitle, pk=pk)
+
+    if request.method == 'POST':
+        form = JobTitleForm(request.POST, instance=job_title)
+        if form.is_valid():
+            job_title = form.save(commit=False)
+            job_title.save(audit_actor=request.user, audit_request=request)
+            form.save_m2m()
+
+            messages.success(
+                request,
+                _('Job title "%(title)s" was successfully updated.') % {
+                    'title': job_title.title,
+                }
+            )
+            return redirect('employees:job_title_list')
+    else:
+        form = JobTitleForm(instance=job_title)
+
+    menu_items = _get_menu_items(request, active_label='Job Titles')
+
+    context = {
+        'form': form,
+        'job_title': job_title,
+        'action': 'edit',
+        'title': _('Edit Job Title'),
+        'menu_items': menu_items,
+    }
+    return render(request, 'employees/job_title_form.html', context)
+
+
+@role_required(User.Role.ADMIN, User.Role.HR)
+@require_http_methods(['GET', 'POST'])
+def job_title_delete(request, pk):
+    """
+    Job title deletion confirmation and execution view. Restricted to ADMIN and HR.
+    Never deletes on GET.
+    Prevents deletion if assigned employees exist.
+    """
+    job_title = get_object_or_404(
+        JobTitle.objects.annotate(employee_count=Count('employees')),
+        pk=pk
+    )
+
+    if request.method == 'POST':
+        if job_title.employee_count > 0 or job_title.employees.exists():
+            messages.error(
+                request,
+                _(
+                    'Cannot delete job title "%(title)s" because %(count)d '
+                    'employee(s) have this position. Please reassign them first.'
+                ) % {
+                    'title': job_title.title,
+                    'count': job_title.employee_count,
+                }
+            )
+            return redirect('employees:job_title_list')
+
+        try:
+            title_name = job_title.title
+            job_title.delete(audit_actor=request.user, audit_request=request)
+            messages.success(
+                request,
+                _('Job title "%(title)s" was successfully deleted.') % {
+                    'title': title_name,
+                }
+            )
+            return redirect('employees:job_title_list')
+        except ProtectedError:
+            messages.error(
+                request,
+                _('Job title "%(title)s" cannot be deleted because it is referenced by other records.') % {
+                    'title': job_title.title,
+                }
+            )
+            return redirect('employees:job_title_list')
+
+    menu_items = _get_menu_items(request, active_label='Job Titles')
+
+    context = {
+        'job_title': job_title,
+        'has_assigned_employees': (job_title.employee_count > 0 or job_title.employees.exists()),
+        'menu_items': menu_items,
+    }
+    return render(request, 'employees/job_title_confirm_delete.html', context)

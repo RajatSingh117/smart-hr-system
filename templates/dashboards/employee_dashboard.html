@@ -1,8 +1,32 @@
 {% extends "dashboards/dashboard_base.html" %}
+{% load static %}
+
 {% block dashboard_title %}My Dashboard{% endblock %}
-{% block page_heading %}Welcome, {{ request.user.get_full_name|default:request.user.get_username }}{% endblock %}
+{% block page_heading %}
+{% url 'attendance:list' as att_list_url %}
+{% url 'leave_management:list' as leave_list_url %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+  <div>
+    <h1 class="h3 mb-1 fw-bold">Welcome back, {{ request.user.get_full_name|default:request.user.email }}</h1>
+    <p class="text-secondary small mb-0">Employee Self-Service portal, personal attendance, and leave management</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if att_list_url %}
+      <a href="{{ att_list_url }}" class="btn btn-primary">
+        <i class="bi bi-clock me-1"></i> Today's Attendance
+      </a>
+    {% endif %}
+    {% if leave_list_url %}
+      <a href="{{ leave_list_url }}" class="btn btn-outline-secondary">
+        <i class="bi bi-calendar2-plus me-1"></i> My Leave
+      </a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
+<!-- Metric Stat Cards -->
 <div class="row g-3 mb-4">
   {% for card in cards %}
     <div class="col-12 col-sm-6 col-xl-3">
@@ -11,30 +35,99 @@
   {% endfor %}
 </div>
 
-<div class="row g-3">
-  <div class="col-12 col-lg-6">
+<div class="row g-4">
+  <!-- Left: My Profile Summary -->
+  <div class="col-12 col-lg-5">
     <div class="card h-100">
-      <div class="card-header">My Profile</div>
-      <div class="card-body">
-        <h5>{{ request.user.get_full_name|default:request.user.get_username }}</h5>
-        <p class="text-muted mb-1">
-          Email: {{ request.user.email }}
-        </p>
-        <p class="text-muted mb-3">
-          Role: {{ request.user.get_role_display }}
-        </p>
-        <a href="{% url 'accounts:profile' %}" class="btn btn-outline-primary btn-sm">
-          Edit Profile
-        </a>
+      {% url 'accounts:profile' as profile_url %}
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0"><i class="bi bi-person-badge me-2 text-primary"></i>My Profile</h5>
+        {% if profile_url %}
+          <a href="{{ profile_url }}" class="small text-decoration-none">Edit Profile</a>
+        {% endif %}
+      </div>
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <div class="avatar-circle bg-primary text-white d-flex align-items-center justify-content-center rounded-circle fw-bold"
+               style="width: 54px; height: 54px; font-size: 1.35rem;">
+            {{ request.user.get_initials }}
+          </div>
+          <div>
+            <h5 class="mb-1 fw-bold">{{ request.user.get_full_name|default:request.user.email }}</h5>
+            <span class="badge bg-primary-subtle text-primary">{{ request.user.get_role_display }}</span>
+          </div>
+        </div>
+
+        <div class="list-group list-group-flush border-top">
+          <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between">
+            <span class="text-secondary small">Email</span>
+            <span class="fw-medium small">{{ request.user.email }}</span>
+          </div>
+          <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between">
+            <span class="text-secondary small">Employee ID</span>
+            <span class="fw-medium small"><code>{{ my_employee.employee_id|default:"Unlinked" }}</code></span>
+          </div>
+          <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between">
+            <span class="text-secondary small">Department</span>
+            <span class="fw-medium small">{{ my_employee.department.name|default:"Unassigned" }}</span>
+          </div>
+          <div class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between">
+            <span class="text-secondary small">Position</span>
+            <span class="fw-medium small">{{ my_employee.job_title.title|default:"Unassigned" }}</span>
+          </div>
+        </div>
+
+        {% url 'attendance:list' as check_url %}
+        {% if check_url %}
+          <div class="mt-4 pt-2">
+            <a href="{{ check_url }}" class="btn btn-outline-primary w-100">
+              <i class="bi bi-box-arrow-in-right me-1"></i> Check In / Check Out
+            </a>
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="col-12 col-lg-6">
+  <!-- Right: Recent Leave History -->
+  <div class="col-12 col-lg-7">
     <div class="card h-100">
-      <div class="card-header">My Recent Leave Requests</div>
-      <div class="card-body">
-        {% include "partials/_empty_state.html" with message="Leave request history will appear here once the leave workflow is connected." %}
+      {% url 'leave_management:list' as leave_url %}
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0"><i class="bi bi-calendar-event me-2 text-warning"></i>Recent Leave Requests</h5>
+        {% if leave_url %}
+          <a href="{{ leave_url }}" class="small text-decoration-none">View All</a>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% if recent_leaves %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" class="ps-4">Type</th>
+                  <th scope="col">Dates</th>
+                  <th scope="col" class="text-end pe-4">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for l in recent_leaves %}
+                  <tr>
+                    <td class="ps-4 fw-semibold">{{ l.leave_type.name }}</td>
+                    <td class="small text-secondary">{{ l.start_date }} to {{ l.end_date }}</td>
+                    <td class="text-end pe-4">
+                      {% include "partials/_status_badge.html" with status=l.get_status_display %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="py-4">
+            {% include "partials/_empty_state.html" with message="You have no recent leave applications on file." %}
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import PayrollRecord, Payslip
+from .models import NotificationLog, PayrollRecord, Payslip
 
 
 class PayrollRecordSerializer(serializers.ModelSerializer):
@@ -67,5 +67,21 @@ class PayslipSerializer(serializers.ModelSerializer):
             "pdf_file",
             "status",
             "generated_at",
+        ]
+        read_only_fields = fields
+
+
+class NotificationLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationLog
+        fields = [
+            "id",
+            "recipient",
+            "notification_type",
+            "subject",
+            "status",
+            "error_message",
+            "created_at",
+            "sent_at",
         ]
         read_only_fields = fields

@@ -9,6 +9,7 @@ class LeaveType(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        app_label = "leave_management"
         ordering = ["name"]
 
     def __str__(self):
@@ -35,6 +36,7 @@ class LeaveBalance(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        app_label = "leave_management"
         ordering = ["-year", "employee"]
         constraints = [
             models.UniqueConstraint(
@@ -104,6 +106,7 @@ class LeaveRequest(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        app_label = "leave_management"
         ordering = ["-created_at"]
         constraints = [
             models.CheckConstraint(
@@ -145,6 +148,7 @@ class LeaveStatusHistory(models.Model):
     changed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = "leave_management"
         ordering = ["changed_at", "id"]
         verbose_name_plural = "leave status history"
         indexes = [
@@ -162,6 +166,7 @@ class PublicHoliday(models.Model):
     name = models.CharField(max_length=100)
 
     class Meta:
+        app_label = "leave_management"
         ordering = ["date"]
 
     def __str__(self):

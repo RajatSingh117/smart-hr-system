@@ -1,91 +1,155 @@
-{% extends 'base.html' %}
+{% extends "dashboards/dashboard_base.html" %}
+{% load static %}
 
-{% block title %}My Profile - Smart HRMS{% endblock %}
-
-{% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white border-0 py-4">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0 fw-bold text-success"><i class="bi bi-person-gear me-2"></i>My Profile</h4>
-                        <a href="{% url 'accounts:dashboard_redirect' %}" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-arrow-left me-1"></i> Back
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body p-4">
-                    <div class="text-center mb-4">
-                        <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
-                             style="width: 100px; height: 100px; font-size: 2.5rem; font-weight: 600;">
-                            {{ user.get_initials }}
-                        </div>
-                        <h4 class="mb-1">{{ user.get_full_name|default:user.email }}</h4>
-                        <span class="badge bg-success">{{ user.get_role_display }}</span>
-                    </div>
-
-                    <hr class="my-4">
-
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">First Name</label>
-                            <p class="mb-0">{{ user.first_name|default:"Not set" }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Last Name</label>
-                            <p class="mb-0">{{ user.last_name|default:"Not set" }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Email</label>
-                            <p class="mb-0">{{ user.email }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Phone</label>
-                            <p class="mb-0">{{ user.phone|default:"Not provided" }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Department</label>
-                            <p class="mb-0">{{ user.department|default:"Not assigned" }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Employee ID</label>
-                            <p class="mb-0">{{ user.employee_id|default:"Not assigned" }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Role</label>
-                            <p class="mb-0">{{ user.get_role_display }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Joined</label>
-                            <p class="mb-0">{{ user.date_joined|date:"F d, Y" }}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label text-muted small fw-medium">Status</label>
-                            <p class="mb-0">
-                                {% if user.is_active %}
-                                    <span class="badge bg-success">Active</span>
-                                {% else %}
-                                    <span class="badge bg-danger">Inactive</span>
-                                {% endif %}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{% url 'accounts:password_change' %}" class="btn btn-outline-primary">
-                            <i class="bi bi-key me-1"></i> Change Password
-                        </a>
-                        <a href="{% url 'accounts:logout' %}" class="btn btn-outline-danger">
-                            <i class="bi bi-box-arrow-right me-1"></i> Logout
-                        </a>
-                        <a href="{% url 'accounts:dashboard_redirect' %}" class="btn btn-success">
-                            <i class="bi bi-house-door me-1"></i> Back to Dashboard
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+{% block dashboard_title %}My Profile{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-person-gear fs-5"></i>
     </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">My Profile</h1>
+      <p class="text-secondary small mb-0">Personal user credentials, linked personnel details, and role access</p>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'accounts:password_change' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-key me-1"></i> Change Password
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+{% block dashboard_body %}
+<div class="row g-4">
+  <!-- Left Column: User Account Card -->
+  <div class="col-12 col-lg-5">
+    <div class="card border-0 shadow-sm text-center p-4 mb-4">
+      <div class="avatar-circle mx-auto mb-3 bg-primary text-white d-flex align-items-center justify-content-center rounded-circle"
+           style="width: 88px; height: 88px; font-size: 2.25rem; font-weight: 700;">
+        {{ user.get_initials }}
+      </div>
+      <h4 class="mb-1 fw-bold">{{ user.get_full_name|default:user.email }}</h4>
+      <p class="text-muted mb-2"><code>{{ user.email }}</code></p>
+      <div>
+        <span class="badge bg-primary text-uppercase px-3 py-2 fs-6">
+          <i class="bi bi-shield-lock me-1"></i>{{ user.get_role_display }}
+        </span>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="row g-3 text-start">
+        <div class="col-6">
+          <span class="small text-muted fw-semibold d-block">Account Status</span>
+          <span class="badge {% if user.is_active %}bg-success{% else %}bg-danger{% endif %} rounded-pill px-2 py-1">
+            {% if user.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </div>
+        <div class="col-6">
+          <span class="small text-muted fw-semibold d-block">Member Since</span>
+          <span class="fw-medium text-dark">{{ user.date_joined|date:"M d, Y" }}</span>
+        </div>
+        <div class="col-6">
+          <span class="small text-muted fw-semibold d-block">First Name</span>
+          <span class="fw-medium">{{ user.first_name|default:"Not set" }}</span>
+        </div>
+        <div class="col-6">
+          <span class="small text-muted fw-semibold d-block">Last Name</span>
+          <span class="fw-medium">{{ user.last_name|default:"Not set" }}</span>
+        </div>
+        <div class="col-12">
+          <span class="small text-muted fw-semibold d-block">Phone Number</span>
+          <span class="fw-medium">{{ user.phone|default:"Not provided" }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Linked Employee Profile Card -->
+  <div class="col-12 col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-person-vcard me-2 text-primary"></i>Linked Employee Profile
+        </h5>
+      </div>
+      <div class="card-body p-4">
+        {% if employee_profile %}
+          <div class="alert alert-success d-flex align-items-center gap-3 mb-4 border-0 shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill fs-3 text-success"></i>
+            <div>
+              <strong>Profile Successfully Linked:</strong>
+              Your login account is linked to the employee profile for <strong>{{ employee_profile.full_name }}</strong>.
+              You have access to self-service check-in, check-out, and personal leave applications.
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <span class="small text-muted fw-semibold d-block">Employee ID</span>
+              <span class="fs-5 fw-bold text-dark"><code>{{ employee_profile.employee_id }}</code></span>
+            </div>
+            <div class="col-sm-6">
+              <span class="small text-muted fw-semibold d-block">Employment Status</span>
+              <span class="badge bg-success rounded-pill px-3 py-1">{{ employee_profile.get_employment_status_display }}</span>
+            </div>
+            <div class="col-sm-6">
+              <span class="small text-muted fw-semibold d-block">Department</span>
+              <span class="fs-6 fw-medium">{{ employee_profile.department.name|default:"Unassigned" }}</span>
+            </div>
+            <div class="col-sm-6">
+              <span class="small text-muted fw-semibold d-block">Job Title</span>
+              <span class="fs-6 fw-medium">{{ employee_profile.job_title.title|default:"Unassigned" }}</span>
+            </div>
+            <div class="col-sm-6">
+              <span class="small text-muted fw-semibold d-block">Joining Date</span>
+              <span class="fs-6 fw-medium">{{ employee_profile.joining_date|date:"F d, Y" }}</span>
+            </div>
+            <div class="col-sm-6">
+              <span class="small text-muted fw-semibold d-block">Official Email</span>
+              <span class="fs-6 fw-medium">{{ employee_profile.email }}</span>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-top d-flex gap-2">
+            <a href="{% url 'employees:employee_detail' employee_profile.pk %}" class="btn btn-outline-primary">
+              <i class="bi bi-person-lines-fill me-1"></i> View Full Employee Record
+            </a>
+          </div>
+        {% else %}
+          <div class="alert alert-warning border-0 shadow-sm d-flex align-items-start gap-3 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-3 text-warning flex-shrink-0 mt-1"></i>
+            <div>
+              <div class="fw-bold fs-6">No Employee Profile Linked</div>
+              <p class="mb-0 small text-muted">
+                Your user login account (<code>{{ user.email }}</code>) does not have a linked employee record.
+                Self-service actions (such as daily attendance check-in and applying for personal leave) require a linked employee profile.
+              </p>
+            </div>
+          </div>
+
+          <p class="text-muted">
+            If you are an administrator or HR specialist managing company records, you can continue managing users, departments, and employee records without linking a personal profile.
+          </p>
+
+          {% if user.is_hr %}
+            <div class="p-3 bg-light rounded-3 mb-3">
+              <h6 class="fw-bold mb-2"><i class="bi bi-link-45deg me-1 text-primary"></i>How to link an Employee Profile:</h6>
+              <ol class="small text-muted mb-0 ps-3">
+                <li class="mb-1">Go to the <a href="{% url 'employees:employee_list' %}" class="fw-semibold">Employee Directory</a>.</li>
+                <li class="mb-1">Open your employee record (or click <strong>Add Employee</strong> to create one for yourself).</li>
+                <li class="mb-0">Under <em>Account & Additional Information</em>, select your account <code>{{ user.email }}</code> in the <strong>User account</strong> dropdown and save.</li>
+              </ol>
+            </div>
+            <a href="{% url 'employees:employee_list' %}" class="btn btn-primary">
+              <i class="bi bi-people me-1"></i> Open Employee Directory
+            </a>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

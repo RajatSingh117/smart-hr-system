@@ -28,4 +28,14 @@ urlpatterns = [
         views.PayslipDownloadAPIView.as_view(),
         name="payslip-download",
     ),
+    path(
+        "notifications/",
+        views.NotificationLogListAPIView.as_view(),
+        name="notification-list",
+    ),
+    path(
+        "notifications/<int:pk>/",
+        views.NotificationLogDetailAPIView.as_view(),
+        name="notification-detail",
+    ),
 ]
