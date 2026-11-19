@@ -28,7 +28,8 @@ ROLE_TO_URL_NAME = {
 
 def get_role(user):
     """Read the role from the custom User model."""
-    return getattr(user, "role", None)
+    role = getattr(user, "role", None)
+    return str(role).lower() if role else None
 
 
 class DashboardRedirectView(LoginRequiredMixin, View):
@@ -64,6 +65,7 @@ class RoleDashboardView(LoginRequiredMixin, TemplateView):
         context["menu_items"] = menu_for_role(
             self.required_role,
             self.request.path,
+            valid_only=True,
         )
         values = self.get_card_values()
         context["cards"] = [
@@ -94,26 +96,26 @@ def org_card_values():
     }
 
 ADMIN_CARDS = [
-    {"title": "Total Headcount", "value": "--", "icon": "👥"},
-    {"title": "Departments", "value": "--", "icon": "🏢"},
-    {"title": "Pending Leave Requests", "value": "--", "icon": "🌴"},
-    {"title": "Latest Payroll Period", "value": "--", "icon": "💰"},
-    {"title": "Recent Audit Events", "value": "--", "icon": "🛡️"},
+    {"title": "Total Headcount", "value": "--", "icon": "bi bi-people"},
+    {"title": "Departments", "value": "--", "icon": "bi bi-building"},
+    {"title": "Pending Leave Requests", "value": "--", "icon": "bi bi-calendar2-range"},
+    {"title": "Latest Payroll Period", "value": "--", "icon": "bi bi-cash-stack"},
+    {"title": "Recent Audit Events", "value": "--", "icon": "bi bi-shield-check"},
 ]
 
 HR_CARDS = [
-    {"title": "Headcount", "value": "--", "icon": "👥"},
-    {"title": "Pending Leave Requests", "value": "--", "icon": "🌴"},
-    {"title": "Today's Attendance", "value": "--", "icon": "✅"},
-    {"title": "Incomplete Profiles", "value": "--", "icon": "⚠️"},
-    {"title": "Payroll Status", "value": "--", "icon": "💰"},
+    {"title": "Headcount", "value": "--", "icon": "bi bi-people"},
+    {"title": "Pending Leave Requests", "value": "--", "icon": "bi bi-calendar2-range"},
+    {"title": "Today's Attendance", "value": "--", "icon": "bi bi-calendar-check"},
+    {"title": "Incomplete Profiles", "value": "--", "icon": "bi bi-exclamation-triangle"},
+    {"title": "Payroll Status", "value": "--", "icon": "bi bi-cash-stack"},
 ]
 
 EMPLOYEE_CARDS = [
-    {"title": "My Attendance This Month", "value": "--", "icon": "✅"},
-    {"title": "My Leave Balance", "value": "--", "icon": "🗓️"},
-    {"title": "My Pending Leave", "value": "--", "icon": "⏳"},
-    {"title": "Latest Payslip", "value": "--", "icon": "📄"},
+    {"title": "My Attendance This Month", "value": "--", "icon": "bi bi-calendar-check"},
+    {"title": "My Leave Balance", "value": "--", "icon": "bi bi-calendar2-check"},
+    {"title": "My Pending Leave", "value": "--", "icon": "bi bi-clock-history"},
+    {"title": "Latest Payslip", "value": "--", "icon": "bi bi-receipt"},
 ]
 
 

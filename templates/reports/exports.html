@@ -1,23 +1,67 @@
 {% extends "dashboards/dashboard_base.html" %}
-{% block dashboard_title %}Reports and exports{% endblock %}
-{% block page_heading %}Reports and exports{% endblock %}
+{% load static %}
+
+{% block dashboard_title %}Reports & Exports{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-file-earmark-arrow-down fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Reports & Exports</h1>
+      <p class="text-secondary small mb-0">Export organizational records in standard CSV, Excel, and PDF formats</p>
+    </div>
+  </div>
+  <a href="{% url 'reports:charts' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-graph-up me-1"></i> Visual Analytics
+  </a>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
 <div class="card">
-  <div class="table-responsive">
-    <table class="table align-middle mb-0">
-      <thead class="table-light"><tr><th>Data</th><th>CSV</th><th>Excel</th><th>PDF</th></tr></thead>
-      <tbody>
-        {% for label, key in datasets %}
-        <tr>
-          <td>{{ label }}</td>
-          <td><a class="btn btn-sm btn-outline-primary" href="{% url 'reports:export_csv' key %}">Download CSV</a></td>
-          <td><a class="btn btn-sm btn-outline-success" href="{% url 'reports:export_excel' key %}">Download Excel</a></td>
-          <td><a class="btn btn-sm btn-outline-danger" href="{% url 'reports:export_pdf' key %}">Download PDF</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="card-header">
+    <h5 class="fw-bold mb-1">Available Datasets</h5>
+    <p class="text-secondary small mb-0">Export current organizational records in standard file formats.</p>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th scope="col" class="ps-3">Dataset Name</th>
+            <th scope="col" class="text-center">CSV Format</th>
+            <th scope="col" class="text-center">Excel Format</th>
+            <th scope="col" class="text-center">PDF Format</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for label, key in datasets %}
+            <tr>
+              <td class="ps-3 fw-semibold text-dark">
+                <i class="bi bi-database me-2 text-muted"></i>{{ label }}
+              </td>
+              <td class="text-center">
+                <a class="btn btn-sm btn-outline-primary px-3" href="{% url 'reports:export_csv' key %}" title="Download {{ label }} as CSV">
+                  <i class="bi bi-filetype-csv me-1"></i> CSV
+                </a>
+              </td>
+              <td class="text-center">
+                <a class="btn btn-sm btn-outline-success px-3" href="{% url 'reports:export_excel' key %}" title="Download {{ label }} as Excel Spreadsheet">
+                  <i class="bi bi-filetype-xlsx me-1"></i> Excel
+                </a>
+              </td>
+              <td class="text-center">
+                <a class="btn btn-sm btn-outline-danger px-3" href="{% url 'reports:export_pdf' key %}" title="Download {{ label }} as PDF Document">
+                  <i class="bi bi-filetype-pdf me-1"></i> PDF
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 {% endblock %}

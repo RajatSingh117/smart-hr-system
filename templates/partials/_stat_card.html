@@ -1,9 +1,13 @@
-<div class="card hr-stat-card h-100">
-  <div class="card-body d-flex align-items-center">
-    <div class="hr-stat-icon me-3">{{ icon }}</div>
-    <div>
-      <div class="text-muted small">{{ title }}</div>
-      <div class="fs-3 fw-semibold">{{ value|default_if_none:"--" }}</div>
-    </div>
+<div class="hr-stat-card h-100">
+  <div class="hr-stat-icon">
+    {% if "bi-" in icon or "bi " in icon %}
+      <i class="{{ icon }}"></i>
+    {% else %}
+      {{ icon }}
+    {% endif %}
+  </div>
+  <div class="flex-grow-1 min-w-0">
+    <div class="hr-stat-title text-truncate">{{ title }}</div>
+    <div class="hr-stat-value">{{ value|default_if_none:"--" }}</div>
   </div>
 </div>

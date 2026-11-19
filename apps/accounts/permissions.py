@@ -92,6 +92,9 @@ class CanAccessPayroll(permissions.BasePermission):
         if hasattr(obj, "user"):
             return obj.user_id == request.user.pk
 
+        if hasattr(obj, "recipient"):
+            return obj.recipient == request.user.email
+
         return False
 
 class IsSelfOrHR(permissions.BasePermission):

@@ -1,23 +1,81 @@
 {% extends "dashboards/dashboard_base.html" %}
-{% block dashboard_title %}Payslip{% endblock %}
-{% block page_heading %}Payslip: {{ payslip.period }}{% endblock %}
+{% load static %}
+
+{% block dashboard_title %}Payslip: {{ payslip.period }}{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-file-earmark-ruled fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Payslip: {{ payslip.period }}</h1>
+      <p class="text-secondary small mb-0">Official earnings and deductions statement for {{ payslip.employee }}</p>
+    </div>
+  </div>
+  <a href="{% url 'reports:preview_my_payslips' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Payslips
+  </a>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
-<div class="mb-3">
-  <a href="{% url 'reports:preview_my_payslips' %}" class="btn btn-outline-secondary">&larr; Back to payslips</a>
-</div>
-<div class="card">
-  <div class="card-body">
-    <h5 class="card-title">{{ payslip.employee }}</h5>
-    <p class="text-muted">{{ payslip.period }}</p>
-    <dl class="row mb-0">
-      <dt class="col-sm-3">Basic salary</dt><dd class="col-sm-9">{{ payslip.basic }}</dd>
-      <dt class="col-sm-3">Allowances</dt><dd class="col-sm-9">{{ payslip.allowances }}</dd>
-      <dt class="col-sm-3">Deductions</dt><dd class="col-sm-9">{{ payslip.deductions }}</dd>
-      <dt class="col-sm-3">Net pay</dt><dd class="col-sm-9"><strong>{{ payslip.net }}</strong></dd>
-      <dt class="col-sm-3">Status</dt>
-      <dd class="col-sm-9"><span class="badge {% if payslip.status == 'Paid' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ payslip.status }}</span></dd>
-    </dl>
+<div class="row justify-content-center">
+  <div class="col-12 col-md-9 col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center p-4 border-bottom">
+        <div>
+          <h5 class="fw-bold mb-1">{{ payslip.employee }}</h5>
+          <span class="text-secondary small">Disbursement Period: <strong>{{ payslip.period }}</strong></span>
+        </div>
+        <div>
+          {% if payslip.status == "Paid" or payslip.status == "Processed" %}
+            <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fs-6">
+              <i class="bi bi-check-circle me-1"></i>{{ payslip.status }}
+            </span>
+          {% else %}
+            <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2 fs-6">
+              <i class="bi bi-clock-history me-1"></i>{{ payslip.status }}
+            </span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-4 p-md-5">
+        <div class="row g-4 mb-4">
+          <div class="col-12 col-sm-6">
+            <div class="p-3 rounded bg-light border">
+              <span class="text-secondary small fw-semibold d-block">Basic Salary</span>
+              <span class="fs-4 fw-bold text-dark">${{ payslip.basic|default:"0.00" }}</span>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <div class="p-3 rounded bg-light border">
+              <span class="text-secondary small fw-semibold d-block">Allowances & Benefits</span>
+              <span class="fs-4 fw-bold text-success">+${{ payslip.allowances|default:"0.00" }}</span>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <div class="p-3 rounded bg-light border">
+              <span class="text-secondary small fw-semibold d-block">Tax & Statutory Deductions</span>
+              <span class="fs-4 fw-bold text-danger">-${{ payslip.deductions|default:"0.00" }}</span>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <div class="p-3 rounded border border-warning" style="background-color: var(--primary-subtle);">
+              <span class="small fw-semibold d-block" style="color: var(--primary);">Net Payable Amount</span>
+              <span class="fs-4 fw-bold" style="color: var(--primary);">${{ payslip.net|default:"0.00" }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-secondary d-flex align-items-center gap-3 mb-0" role="alert">
+          <i class="bi bi-info-circle fs-5 flex-shrink-0"></i>
+          <div class="small">
+            This statement was generated electronically by Smart HR System and represents an authenticated digital record of payroll disbursement.
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

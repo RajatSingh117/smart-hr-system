@@ -90,6 +90,25 @@
               {% if form.department.errors %}
                 <div class="invalid-feedback d-block">{{ form.department.errors.0 }}</div>
               {% endif %}
+              {% if not form.department.field.queryset.exists %}
+                <div class="alert alert-warning py-2 px-3 small mt-2 mb-0 d-flex align-items-center justify-content-between">
+                  <span><i class="bi bi-exclamation-triangle me-1"></i> No active departments found.</span>
+                  {% if request.user.is_hr %}
+                    <a href="{% url 'employees:department_create' %}" class="btn btn-warning btn-sm py-0 px-2 fw-semibold" target="_blank">
+                      <i class="bi bi-plus-circle me-1"></i> Create Department
+                    </a>
+                  {% endif %}
+                </div>
+              {% else %}
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                  <span class="form-text small text-muted">Assign to an operational department.</span>
+                  {% if request.user.is_hr %}
+                    <a href="{% url 'employees:department_create' %}" class="small text-decoration-none" target="_blank" title="Open Department creation in new tab">
+                      <i class="bi bi-plus-circle me-1"></i>New Department
+                    </a>
+                  {% endif %}
+                </div>
+              {% endif %}
             </div>
 
             <div class="col-12 col-md-6">
@@ -99,6 +118,25 @@
               {{ form.job_title }}
               {% if form.job_title.errors %}
                 <div class="invalid-feedback d-block">{{ form.job_title.errors.0 }}</div>
+              {% endif %}
+              {% if not form.job_title.field.queryset.exists %}
+                <div class="alert alert-warning py-2 px-3 small mt-2 mb-0 d-flex align-items-center justify-content-between">
+                  <span><i class="bi bi-exclamation-triangle me-1"></i> No active job titles found.</span>
+                  {% if request.user.is_hr %}
+                    <a href="{% url 'employees:job_title_create' %}" class="btn btn-warning btn-sm py-0 px-2 fw-semibold" target="_blank">
+                      <i class="bi bi-plus-circle me-1"></i> Create Job Title
+                    </a>
+                  {% endif %}
+                </div>
+              {% else %}
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                  <span class="form-text small text-muted">Assign job role or designation.</span>
+                  {% if request.user.is_hr %}
+                    <a href="{% url 'employees:job_title_create' %}" class="small text-decoration-none" target="_blank" title="Open Job Title creation in new tab">
+                      <i class="bi bi-plus-circle me-1"></i>New Job Title
+                    </a>
+                  {% endif %}
+                </div>
               {% endif %}
             </div>
 

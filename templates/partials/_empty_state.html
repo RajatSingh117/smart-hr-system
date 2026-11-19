@@ -1,4 +1,12 @@
-<div class="text-center text-muted py-5">
-  <div class="fs-1">&#128229;</div>
-  <p class="mb-0">{{ message|default:"Nothing to show yet." }}</p>
+<div class="hr-empty-state py-4">
+  <div class="hr-empty-icon mb-3">
+    <i class="{{ icon|default:'bi bi-inbox' }}"></i>
+  </div>
+  <h6 class="hr-empty-title mb-2">{{ title|default:"No Data Available" }}</h6>
+  <p class="hr-empty-description mb-3">{{ message|default:"Nothing to display at this moment." }}</p>
+  {% if action_url and action_label %}
+    <a href="{{ action_url }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i> {{ action_label }}
+    </a>
+  {% endif %}
 </div>

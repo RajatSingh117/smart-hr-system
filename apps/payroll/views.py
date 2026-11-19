@@ -14,8 +14,12 @@ from rest_framework.views import APIView
 from apps.accounts.models import User
 from apps.accounts.permissions import CanAccessPayroll
 
-from .models import PayrollRecord, Payslip
-from .serializers import PayrollRecordSerializer, PayslipSerializer
+from .models import NotificationLog, PayrollRecord, Payslip
+from .serializers import (
+    NotificationLogSerializer,
+    PayrollRecordSerializer,
+    PayslipSerializer,
+)
 from .pdf_services import generate_payslip_pdf
 
 
@@ -268,3 +272,55 @@ class PayslipDownloadAPIView(APIView):
             filename=f"{payslip.payslip_number}.pdf",
             content_type="application/pdf",
         )
+
+
+# --------------------------------------------------
+# Notification Log API
+# --------------------------------------------------
+
+class NotificationLogListAPIView(generics.ListAPIView):
+    """API endpoint for listing notification delivery logs with RBAC isolation."""
+
+    serializer_class = NotificationLogSerializer
+    permission_classes = [CanAccessPayroll]
+    authentication_classes = [
+        TokenAuthentication,
+        SessionAuthentication,
+    ]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return NotificationLog.objects.none()
+
+        if _is_hr_or_admin(user):
+            return NotificationLog.objects.all()
+
+        if user.role == User.Role.EMPLOYEE:
+            return NotificationLog.objects.filter(recipient=user.email)
+
+        return NotificationLog.objects.none()
+
+
+class NotificationLogDetailAPIView(generics.RetrieveAPIView):
+    """API endpoint for retrieving an individual notification log with RBAC isolation."""
+
+    serializer_class = NotificationLogSerializer
+    permission_classes = [CanAccessPayroll]
+    authentication_classes = [
+        TokenAuthentication,
+        SessionAuthentication,
+    ]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return NotificationLog.objects.none()
+
+        if _is_hr_or_admin(user):
+            return NotificationLog.objects.all()
+
+        if user.role == User.Role.EMPLOYEE:
+            return NotificationLog.objects.filter(recipient=user.email)
+
+        return NotificationLog.objects.none()

@@ -16,7 +16,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.accounts.permissions import CanAccessPayroll
 from apps.employees.models import Employee, Department, JobTitle
-from apps.payroll.models import PayrollPeriod, PayrollRecord, Payslip
+from apps.payroll.models import PayrollPeriod, PayrollRecord, Payslip, NotificationLog
 
 
 class PayrollTestDataMixin:
@@ -628,4 +628,122 @@ class PayrollObjectLevelManipulationTests(
             self.assertEqual(
                 response.status_code,
                 status.HTTP_200_OK,
+            )
+
+
+class NotificationLogAccessTests(
+    PayrollTestDataMixin,
+    TestCase,
+):
+    """Integration tests for NotificationLog API access control."""
+
+    NOTIFICATIONS_URL = "/api/payroll/notifications/"
+    NOTIFICATION_DETAIL_URL = "/api/payroll/notifications/{pk}/"
+
+    def setUp(self):
+        self.client = APIClient()
+        self.create_test_data()
+
+        # Create notifications for employee and employee2
+        self.notification = NotificationLog.objects.create(
+            recipient=self.employee.email,
+            notification_type=NotificationLog.NotificationType.PAYSLIP_READY,
+            subject="Your Payslip is Ready",
+            status=NotificationLog.Status.SENT,
+        )
+
+        self.notification2 = NotificationLog.objects.create(
+            recipient=self.employee2.email,
+            notification_type=NotificationLog.NotificationType.PAYSLIP_READY,
+            subject="Your Payslip is Ready",
+            status=NotificationLog.Status.SENT,
+        )
+
+    def test_employee_can_list_only_own_notifications(self):
+        self.client.force_authenticate(user=self.employee)
+
+        response = self.client.get(self.NOTIFICATIONS_URL)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        notifications = response.data
+        self.assertEqual(len(notifications), 1)
+        self.assertEqual(
+            notifications[0]["id"],
+            self.notification.pk
+        )
+
+    def test_employee_cannot_retrieve_other_notification(self):
+        self.client.force_authenticate(user=self.employee)
+
+        url = self.NOTIFICATION_DETAIL_URL.format(pk=self.notification2.pk)
+
+        response = self.client.get(url)
+
+        self.assertIn(
+            response.status_code,
+            [
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_404_NOT_FOUND,
+            ],
+        )
+
+    def test_hr_can_list_all_notifications(self):
+        self.client.force_authenticate(user=self.hr)
+
+        response = self.client.get(self.NOTIFICATIONS_URL)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_hr_can_retrieve_any_notification(self):
+        self.client.force_authenticate(user=self.hr)
+
+        url = self.NOTIFICATION_DETAIL_URL.format(pk=self.notification2.pk)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_admin_can_access_all_notification_endpoints(self):
+        self.client.force_authenticate(user=self.admin)
+
+        endpoints = [
+            self.NOTIFICATIONS_URL,
+            self.NOTIFICATION_DETAIL_URL.format(pk=self.notification.pk),
+        ]
+
+        for url in endpoints:
+            response = self.client.get(url)
+
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_200_OK,
+                msg=f"Unexpected response for {url}",
+            )
+
+    def test_employee_can_access_own_notification(self):
+        self.client.force_authenticate(user=self.employee)
+
+        url = self.NOTIFICATION_DETAIL_URL.format(pk=self.notification.pk)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_unauthenticated_access_denied(self):
+        endpoints = [
+            self.NOTIFICATIONS_URL,
+            self.NOTIFICATION_DETAIL_URL.format(pk=self.notification.pk),
+        ]
+
+        for url in endpoints:
+            response = self.client.get(url)
+
+            self.assertIn(
+                response.status_code,
+                [
+                    status.HTTP_401_UNAUTHORIZED,
+                    status.HTTP_403_FORBIDDEN,
+                ],
+                msg=f"Unauthenticated access was not denied for {url}",
             )

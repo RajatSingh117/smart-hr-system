@@ -1,62 +1,137 @@
 {% extends "dashboards/dashboard_base.html" %}
-{% block dashboard_title %}Leave request{% endblock %}
-{% block page_heading %}Leave request #{{ leave.id }}{% endblock %}
+{% load static %}
+
+{% block dashboard_title %}Leave Request #{{ leave.id }}{% endblock %}
+{% block page_heading %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <div class="p-2 rounded bg-primary-subtle text-primary">
+      <i class="bi bi-file-earmark-check fs-5"></i>
+    </div>
+    <div>
+      <h1 class="h4 fw-bold mb-0">Leave Request #{{ leave.id }}</h1>
+      <p class="text-secondary small mb-0">Review personnel leave details, supporting remarks, and audit timeline</p>
+    </div>
+  </div>
+  <a href="{% url 'leave_management:list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Leave List
+  </a>
+</div>
+{% endblock %}
 
 {% block dashboard_body %}
-<div class="card mb-3">
-  <div class="card-body">
-    <div class="d-flex justify-content-between mb-2">
-      <strong>{{ leave.employee }}</strong>
-      {% include "partials/_status_badge.html" with status=leave.status %}
+<div class="row g-4 justify-content-center">
+  <div class="col-12 col-lg-8">
+    <!-- Leave Details Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-person me-2 text-primary"></i>{{ leave.employee }}
+        </h5>
+        {% include "partials/_status_badge.html" with status=leave.status %}
+      </div>
+      <div class="card-body p-4">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <span class="text-secondary small fw-semibold d-block">Leave Category</span>
+            <span class="fs-6 fw-bold text-dark">{{ leave.leave_type }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-secondary small fw-semibold d-block">Duration & Days</span>
+            <span class="fs-6 fw-bold text-primary">{{ leave.days }} day{{ leave.days|pluralize }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-secondary small fw-semibold d-block">Start Date</span>
+            <span class="fs-6 fw-medium">{{ leave.start }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-secondary small fw-semibold d-block">End Date</span>
+            <span class="fs-6 fw-medium">{{ leave.end }}</span>
+          </div>
+          <div class="col-12">
+            <span class="text-secondary small fw-semibold d-block">Reason Provided</span>
+            <div class="p-3 rounded bg-light border mt-1 text-dark">{{ leave.reason }}</div>
+          </div>
+          <div class="col-12">
+            <span class="text-muted small">Submitted on {{ leave.applied_on }}</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <dl class="row mb-0">
-      <dt class="col-sm-3">Type</dt><dd class="col-sm-9">{{ leave.leave_type }}</dd>
-      <dt class="col-sm-3">Dates</dt><dd class="col-sm-9">{{ leave.start }} to {{ leave.end }} ({{ leave.days }} day{{ leave.days|pluralize }})</dd>
-      <dt class="col-sm-3">Reason</dt><dd class="col-sm-9">{{ leave.reason }}</dd>
-      <dt class="col-sm-3">Applied on</dt><dd class="col-sm-9">{{ leave.applied_on }}</dd>
-    </dl>
+
+    <!-- Reviewer Decision Card -->
+    {% if can_decide and leave.status == "Pending" %}
+      <div class="card border-0 shadow-sm mb-4 border-top border-4 border-warning">
+        <div class="card-header">
+          <h5 class="fw-bold mb-0"><i class="bi bi-check2-square me-2 text-warning"></i>Manager Decision</h5>
+        </div>
+        <div class="card-body p-4">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+              {% include "partials/_form_field.html" with label="Decision Remarks (required)" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
+            </div>
+            <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+              <button name="action" value="reject" class="btn btn-outline-danger px-4 fw-semibold">
+                <i class="bi bi-x-circle me-1"></i> Reject Request
+              </button>
+              <button name="action" value="approve" class="btn btn-success px-4 fw-bold">
+                <i class="bi bi-check-circle me-1"></i> Approve Leave
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Employee Cancellation Card -->
+    {% if can_cancel %}
+      <div class="card border-0 shadow-sm mb-4 border-top border-4 border-danger">
+        <div class="card-header">
+          <h5 class="fw-bold mb-0 text-danger"><i class="bi bi-slash-circle me-2"></i>Cancel Request</h5>
+        </div>
+        <div class="card-body p-4">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+              {% include "partials/_form_field.html" with label="Cancellation Reason" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
+            </div>
+            <div class="d-flex justify-content-end pt-2 border-top">
+              <button name="action" value="cancel" class="btn btn-danger px-4 fw-bold">
+                <i class="bi bi-x-circle me-1"></i> Cancel Leave Application
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Status Audit Timeline -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header">
+        <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Audit Trail & History</h5>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for h in leave.history %}
+          <li class="list-group-item p-3">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              {% include "partials/_status_badge.html" with status=h.status %}
+              <span class="text-secondary small">{{ h.on }}</span>
+            </div>
+            <div class="small fw-medium text-dark">Action by: {{ h.by }}</div>
+            {% if h.remarks %}
+              <div class="p-2 rounded bg-light border mt-2 small text-secondary">
+                <i class="bi bi-chat-left-text me-1"></i> {{ h.remarks }}
+              </div>
+            {% endif %}
+          </li>
+        {% empty %}
+          <li class="list-group-item p-4 text-center text-muted">
+            No status history recorded yet.
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
   </div>
 </div>
-
-{% if can_decide and leave.status == "Pending" %}
-<div class="card mb-3">
-  <div class="card-header">Decision</div>
-  <div class="card-body">
-    <form method="post" novalidate>
-      {% csrf_token %}
-      {% include "partials/_form_field.html" with label="Remarks (required)" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
-      <button name="action" value="approve" class="btn btn-success">Approve</button>
-      <button name="action" value="reject" class="btn btn-danger">Reject</button>
-    </form>
-  </div>
-</div>
-{% endif %}
-
-{% if can_cancel %}
-<div class="card mb-3">
-  <div class="card-header">Cancel this request</div>
-  <div class="card-body">
-    <form method="post" novalidate>
-      {% csrf_token %}
-      {% include "partials/_form_field.html" with label="Remarks" name="remarks" type="textarea" value=values.remarks error=errors.remarks %}
-      <button name="action" value="cancel" class="btn btn-outline-danger">Cancel request</button>
-    </form>
-  </div>
-</div>
-{% endif %}
-
-<div class="card">
-  <div class="card-header">Status history</div>
-  <ul class="list-group list-group-flush">
-    {% for h in leave.history %}
-      <li class="list-group-item">
-        {% include "partials/_status_badge.html" with status=h.status %}
-        <span class="ms-2">{{ h.by }} · {{ h.on }}</span>
-        {% if h.remarks %}<div class="text-muted small mt-1">{{ h.remarks }}</div>{% endif %}
-      </li>
-    {% endfor %}
-  </ul>
-</div>
-
-<a href="{% url 'leave_management:list' %}" class="btn btn-link mt-3">&larr; Back to leave</a>
 {% endblock %}

@@ -68,6 +68,12 @@ def logout_view(request):
 @require_http_methods(['GET', 'POST'])
 def password_change_view(request):
     """Password change view with custom template."""
+    user = request.user
+    role = getattr(user, "role", None)
+    role_str = str(role).lower() if role else None
+    from apps.reports.navigation import menu_for_role
+    menu_items = menu_for_role(role_str, request.path, valid_only=True)
+
     if request.method == 'POST':
         form = PasswordChangeForm(request.user, request.POST)
         if form.is_valid():
@@ -80,7 +86,11 @@ def password_change_view(request):
     else:
         form = PasswordChangeForm(request.user)
 
-    return render(request, 'accounts/password_change.html', {'form': form})
+    return render(request, 'accounts/password_change.html', {
+        'form': form,
+        'menu_items': menu_items,
+        'role': role_str,
+    })
 
 
 @login_required
@@ -99,8 +109,22 @@ def dashboard_redirect_view(request):
 
 @login_required
 def profile_view(request):
-    """User profile view - read only for now."""
-    return render(request, 'accounts/profile.html', {'user': request.user})
+    """User profile view with linked employee profile integration."""
+    user = request.user
+    role = getattr(user, "role", None)
+    role_str = str(role).lower() if role else None
+    employee_profile = getattr(user, "employee_profile", None)
+
+    from apps.reports.navigation import menu_for_role
+    menu_items = menu_for_role(role_str, request.path, valid_only=True)
+
+    context = {
+        'user': user,
+        'role': role_str,
+        'menu_items': menu_items,
+        'employee_profile': employee_profile,
+    }
+    return render(request, 'accounts/profile.html', context)
 
 
 @login_required

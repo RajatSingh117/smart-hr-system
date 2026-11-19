@@ -1,11 +1,17 @@
-<aside class="hr-sidebar" id="hr-sidebar">
+<aside class="hr-sidebar" id="hr-sidebar" aria-label="Main sidebar navigation">
+  <div class="px-2 mb-2">
+    <span class="hr-nav-group-title">Platform Menu</span>
+  </div>
   <ul class="nav flex-column">
     {% for item in menu_items %}
+      {% if item.url and item.url != "#" %}
       <li class="nav-item">
-        <a class="nav-link{% if item.active %} active{% endif %}" href="{{ item.url }}">
-          <span class="me-2">{{ item.icon }}</span>{{ item.label }}
+        <a class="nav-link{% if item.active %} active{% endif %}" href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}>
+          <i class="{{ item.icon }} me-2" style="font-size: 1.15rem; line-height: 1;"></i>
+          <span>{{ item.label }}</span>
         </a>
       </li>
+      {% endif %}
     {% endfor %}
   </ul>
 </aside>

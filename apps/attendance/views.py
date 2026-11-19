@@ -31,7 +31,7 @@ def _get_employee(user):
 def _base_context(request):
     """What dashboards/dashboard_base.html needs on every page."""
     role = getattr(request.user, "role", None)
-    return {"role": role, "menu_items": menu_for_role(role, request.path)}
+    return {"role": role, "menu_items": menu_for_role(role, request.path, valid_only=True)}
 
 
 def _form_state(fields, values=None, errors=None):
